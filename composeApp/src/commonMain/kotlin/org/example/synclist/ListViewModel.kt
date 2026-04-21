@@ -32,4 +32,16 @@ class ListViewModel(private val repository: ListRepository) : ViewModel() {
             repository.deleteItem(item)
         }
     }
+
+    fun moveItem(fromIndex: Int, toIndex: Int) {
+        viewModelScope.launch {
+            val currentItems = items.value.toMutableList()
+            if (fromIndex !in currentItems.indices || toIndex !in currentItems.indices) return@launch
+
+            val item = currentItems.removeAt(fromIndex)
+            currentItems.add(toIndex, item)
+
+            repository.updateItemPositions(currentItems)
+        }
+    }
 }

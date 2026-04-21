@@ -43,4 +43,12 @@ class ListRepository {
     suspend fun deleteItem(item: ListItem) {
         collection.document(item.id).delete()
     }
+
+    suspend fun updateItemPositions(items: List<ListItem>) {
+        val batch = firestore.batch()
+        items.forEachIndexed { index, item ->
+            batch.update(collection.document(item.id), "position" to index.toDouble())
+        }
+        batch.commit()
+    }
 }
