@@ -19,7 +19,7 @@ class ListRepository {
         }
     }
 
-    suspend fun addItem(text: String) {
+    suspend fun addItem(text: String): ListItem {
         val maxPosition = collection.orderBy("position", Direction.DESCENDING)
             .limit(1)
             .get()
@@ -33,7 +33,12 @@ class ListRepository {
             timestamp = Clock.System.now().toEpochMilliseconds(),
             position = maxPosition + 1.0
         )
-        collection.add(newItem)
+        val ref = collection.add(newItem)
+        return newItem.copy(id = ref.id)
+    }
+
+    suspend fun restoreItem(item: ListItem) {
+        collection.document(item.id).set(item)
     }
 
     suspend fun toggleItem(item: ListItem) {

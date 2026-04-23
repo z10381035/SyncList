@@ -15,9 +15,16 @@ class ListViewModel(private val repository: ListRepository) : ViewModel() {
             initialValue = emptyList()
         )
 
-    fun addItem(text: String) {
+    fun addItem(text: String, onAdded: ((ListItem) -> Unit)? = null) {
         viewModelScope.launch {
-            repository.addItem(text)
+            val item = repository.addItem(text)
+            onAdded?.invoke(item)
+        }
+    }
+
+    fun addItemDirectly(item: ListItem) {
+        viewModelScope.launch {
+            repository.restoreItem(item)
         }
     }
 
@@ -30,6 +37,12 @@ class ListViewModel(private val repository: ListRepository) : ViewModel() {
     fun deleteItem(item: ListItem) {
         viewModelScope.launch {
             repository.deleteItem(item)
+        }
+    }
+
+    fun restoreItem(item: ListItem) {
+        viewModelScope.launch {
+            repository.restoreItem(item)
         }
     }
 

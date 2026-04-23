@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -36,11 +38,11 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.tooling.preview.Preview
+import kotlin.math.*
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import kotlin.math.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,12 +57,16 @@ fun App() {
         var isEditingTitle by remember { mutableStateOf(false) }
         var appBarColor by remember { mutableStateOf<Color?>(null) }
         var showColorPicker by remember { mutableStateOf(false) }
+        
+        val undoRedoManager = remember { UndoRedoManager() }
+        var previousTitle by remember { mutableStateOf(listTitle) }
 
         var createdTimestamp by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
         var lastModifiedTimestamp by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
 
         val lazyListState = rememberLazyListState()
         var draggingItemId by remember { mutableStateOf<String?>(null) }
+        var initialDraggingIndex by remember { mutableStateOf<Int?>(null) }
         var dragOffset by remember { mutableStateOf(0f) }
 
         LaunchedEffect(draggingItemId, dragOffset) {
@@ -68,6 +74,7 @@ fun App() {
             val layoutInfo = lazyListState.layoutInfo
             val draggingItem = layoutInfo.visibleItemsInfo.find { it.key == draggingId } ?: return@LaunchedEffect
             
+            // Calculate item center in viewport coordinates
             val itemCenter = draggingItem.offset + (draggingItem.size / 2) + dragOffset
             
             val targetItem = layoutInfo.visibleItemsInfo.find { item ->
@@ -133,7 +140,29 @@ fun App() {
                         }
                     },
                     actions = {
-                        IconButton(onClick = { isEditingTitle = !isEditingTitle }) {
+                        IconButton(
+                            onClick = { undoRedoManager.undo() },
+                            enabled = undoRedoManager.canUndo
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
+                        }
+                        IconButton(
+                            onClick = { undoRedoManager.redo() },
+                            enabled = undoRedoManager.canRedo
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
+                        }
+                        IconButton(onClick = { 
+                            if (isEditingTitle) {
+                                if (listTitle != previousTitle) {
+                                    undoRedoManager.add(RenameAction(previousTitle, listTitle) { listTitle = it })
+                                }
+                                isEditingTitle = false
+                            } else {
+                                previousTitle = listTitle
+                                isEditingTitle = true
+                            }
+                        }) {
                             Icon(
                                 if (isEditingTitle) Icons.Default.Check else Icons.Default.Edit,
                                 contentDescription = if (isEditingTitle) "Done" else "Edit"
@@ -146,8 +175,12 @@ fun App() {
                 )
             },
             floatingActionButton = {
-                AddItemDialog(onAdd = { 
-                    viewModel.addItem(it)
+                AddItemDialog(onAdd = { text ->
+                    viewModel.addItem(text) { newItem ->
+                        if (isEditingTitle) {
+                            undoRedoManager.add(AddAction(newItem, viewModel))
+                        }
+                    }
                     lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()
                 })
             }
@@ -185,10 +218,16 @@ fun App() {
                         ListItemRow(
                             item = item,
                             onToggle = { 
+                                if (!isEditingTitle) {
+                                    undoRedoManager.add(ToggleAction(item, viewModel))
+                                }
                                 viewModel.toggleItem(item)
                                 lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()
                             },
                             onDelete = { 
+                                if (isEditingTitle) {
+                                    undoRedoManager.add(DeleteAction(item, viewModel))
+                                }
                                 viewModel.deleteItem(item)
                                 lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()
                             },
@@ -202,18 +241,34 @@ fun App() {
                                 },
                             handleModifier = Modifier.pointerInput(item.id) {
                                 detectDragGestures(
-                                    onDragStart = { draggingItemId = item.id },
+                                    onDragStart = { offset ->
+                                        lazyListState.layoutInfo.visibleItemsInfo
+                                            .find { info -> 
+                                                offset.y.toInt() in info.offset..(info.offset + info.size)
+                                            }?.let { 
+                                                draggingItemId = it.key as? String
+                                                initialDraggingIndex = it.index
+                                            }
+                                    },
                                     onDrag = { change, dragAmount ->
                                         change.consume()
                                         dragOffset += dragAmount.y
                                     },
                                     onDragEnd = { 
+                                        if (isEditingTitle && draggingItemId != null && initialDraggingIndex != null) {
+                                            val finalIndex = items.indexOfFirst { it.id == draggingItemId }
+                                            if (finalIndex != -1 && finalIndex != initialDraggingIndex) {
+                                                undoRedoManager.add(MoveAction(initialDraggingIndex!!, finalIndex, viewModel))
+                                            }
+                                        }
                                         draggingItemId = null
+                                        initialDraggingIndex = null
                                         dragOffset = 0f
                                         lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()
                                     },
                                     onDragCancel = {
                                         draggingItemId = null
+                                        initialDraggingIndex = null
                                         dragOffset = 0f
                                     }
                                 )
@@ -256,6 +311,7 @@ fun ListItemRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Zone A: Action Zone
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -278,6 +334,7 @@ fun ListItemRow(
             }
 
             if (isEditMode) {
+                // Zone B: Move Zone (Center 20% approx)
                 Box(
                     modifier = handleModifier
                         .width(64.dp)
@@ -301,6 +358,7 @@ fun ListItemRow(
                     }
                 }
 
+                // Zone C: Delete Zone (Right 20% approx)
                 Box(
                     modifier = Modifier
                         .width(64.dp)
@@ -426,8 +484,6 @@ fun ColorWheel(
                         val dy = touch.y - center.y
                         val dist = min(sqrt(dx * dx + dy * dy), radius)
                         
-                        // atan2 returns angle in radians from -PI to PI
-                        // 0 radians is at the positive X-axis (3 o'clock)
                         var angle = atan2(dy, dx) * 180f / PI.toFloat()
                         if (angle < 0) angle += 360f
                         
@@ -437,7 +493,6 @@ fun ColorWheel(
                     }
                 }
         ) {
-            // Standard digital spectrum: Red, Yellow, Green, Cyan, Blue, Magenta, Red
             val hueColors = listOf(
                 Color.Red, Color.Yellow, Color.Green, Color.Cyan, 
                 Color.Blue, Color.Magenta, Color.Red
