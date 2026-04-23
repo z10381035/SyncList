@@ -3,7 +3,7 @@ package org.example.synclist
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -31,25 +31,29 @@ fun App() {
         val items by viewModel.items.collectAsStateWithLifecycle()
 
         val lazyListState = rememberLazyListState()
-        var draggingItemIndex by remember { mutableStateOf<Int?>(null) }
+        var draggingItemId by remember { mutableStateOf<String?>(null) }
         var dragOffset by remember { mutableStateOf(0f) }
 
-        LaunchedEffect(draggingItemIndex, dragOffset) {
-            val fromIndex = draggingItemIndex ?: return@LaunchedEffect
+        LaunchedEffect(draggingItemId, dragOffset) {
+            val draggingId = draggingItemId ?: return@LaunchedEffect
             val layoutInfo = lazyListState.layoutInfo
-            val draggingItem = layoutInfo.visibleItemsInfo.find { it.index == fromIndex } ?: return@LaunchedEffect
+            val draggingItem = layoutInfo.visibleItemsInfo.find { it.key == draggingId } ?: return@LaunchedEffect
             
-            val itemCenter = draggingItem.offset + dragOffset + draggingItem.size / 2
+            // Calculate item center in viewport coordinates
+            val itemCenter = draggingItem.offset + (draggingItem.size / 2) + dragOffset
+            
             val targetItem = layoutInfo.visibleItemsInfo.find { item ->
-                item.index != fromIndex && 
+                item.key != draggingId && 
                 itemCenter > item.offset && 
                 itemCenter < item.offset + item.size
             }
             
             if (targetItem != null) {
-                viewModel.moveItem(fromIndex, targetItem.index)
-                draggingItemIndex = targetItem.index
-                dragOffset += (draggingItem.offset - targetItem.offset)
+                // Adjust dragOffset by the difference in positions to prevent jumping
+                val offsetDiff = draggingItem.offset - targetItem.offset
+                dragOffset += offsetDiff
+                
+                viewModel.moveItem(draggingItem.index, targetItem.index)
             }
         }
 
@@ -63,12 +67,38 @@ fun App() {
         ) { padding ->
             LazyColumn(
                 state = lazyListState,
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .pointerInput(Unit) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset ->
+                                lazyListState.layoutInfo.visibleItemsInfo
+                                    .find { item -> 
+                                        offset.y.toInt() in item.offset..(item.offset + item.size)
+                                    }?.let { 
+                                        draggingItemId = it.key as? String 
+                                    }
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragOffset += dragAmount.y
+                            },
+                            onDragEnd = { 
+                                draggingItemId = null
+                                dragOffset = 0f
+                            },
+                            onDragCancel = {
+                                draggingItemId = null
+                                dragOffset = 0f
+                            }
+                        )
+                    },
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
-                    val isDragging = draggingItemIndex == index
+                items(items, key = { it.id }) { item ->
+                    val isDragging = draggingItemId == item.id
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -77,23 +107,6 @@ fun App() {
                             .graphicsLayer {
                                 translationY = if (isDragging) dragOffset else 0f
                                 alpha = if (isDragging) 0.8f else 1.0f
-                            }
-                            .pointerInput(Unit) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { draggingItemIndex = index },
-                                    onDrag = { change, dragAmount ->
-                                        change.consume()
-                                        dragOffset += dragAmount.y
-                                    },
-                                    onDragEnd = { 
-                                        draggingItemIndex = null
-                                        dragOffset = 0f
-                                    },
-                                    onDragCancel = {
-                                        draggingItemIndex = null
-                                        dragOffset = 0f
-                                    }
-                                )
                             }
                     ) {
                         ListItemRow(
