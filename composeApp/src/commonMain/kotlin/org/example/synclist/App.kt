@@ -7,8 +7,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +35,9 @@ fun App() {
         val repository = remember { ListRepository() }
         val viewModel: ListViewModel = viewModel { ListViewModel(repository) }
         val items by viewModel.items.collectAsStateWithLifecycle()
+
+        var listTitle by remember { mutableStateOf("SyncList") }
+        var isEditingTitle by remember { mutableStateOf(false) }
 
         val lazyListState = rememberLazyListState()
         var draggingItemId by remember { mutableStateOf<String?>(null) }
@@ -60,7 +68,39 @@ fun App() {
 
         Scaffold(
             topBar = {
-                CenterAlignedTopAppBar(title = { Text("SyncList") })
+                CenterAlignedTopAppBar(
+                    title = {
+                        if (isEditingTitle) {
+                            TextField(
+                                value = listTitle,
+                                onValueChange = { listTitle = it },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                                )
+                            )
+                        } else {
+                            Text(listTitle)
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { if (isEditingTitle) isEditingTitle = false }) {
+                            Icon(
+                                if (isEditingTitle) Icons.Default.Check else Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = if (isEditingTitle) "Save Title" else "Back"
+                            )
+                        }
+                    },
+                    actions = {
+                        TextButton(onClick = { isEditingTitle = !isEditingTitle }) {
+                            Text(if (isEditingTitle) "DONE" else "EDIT")
+                        }
+                        IconButton(onClick = { /* TODO: Open Menu */ }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Menu")
+                        }
+                    }
+                )
             },
             floatingActionButton = {
                 AddItemDialog(onAdd = { viewModel.addItem(it) })
@@ -113,9 +153,9 @@ fun App() {
 
 @Composable
 fun ListItemRow(
-    item: ListItem, 
-    onToggle: () -> Unit, 
-    onDelete: () -> Unit, 
+    item: ListItem,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier,
     handleModifier: Modifier = Modifier
 ) {
@@ -124,12 +164,12 @@ fun ListItemRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Zone A: Action Zone (75%)
+            // Zone A: Action Zone (Left 60% approx)
             Row(
                 modifier = Modifier
-                    .weight(0.75f)
+                    .weight(0.6f)
                     .clickable { onToggle() }
-                    .padding(16.dp),
+                    .padding(vertical = 16.dp, horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Checkbox(
@@ -146,18 +186,42 @@ fun ListItemRow(
                 )
             }
 
-            // Zone B: Move Zone (25%)
+                    Box(
+                        modifier = handleModifier
+                            .weight(0.2f)
+                            .fillMaxHeight()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowUp,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp).offset(y = (-12).dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+            // Zone C: Delete Zone (Right 20% approx)
             Box(
-                modifier = handleModifier
-                    .weight(0.25f)
+                modifier = Modifier
+                    .weight(0.2f)
+                    .clickable { onDelete() }
                     .fillMaxHeight()
                     .padding(16.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
                 Icon(
-                    Icons.Default.Menu, 
-                    contentDescription = "Move Item",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    Icons.Default.Delete,
+                    contentDescription = "Delete Item",
+                    tint = MaterialTheme.colorScheme.error
                 )
             }
         }
