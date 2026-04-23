@@ -1,5 +1,6 @@
 package org.example.synclist
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,6 +26,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -173,16 +176,6 @@ fun App() {
                         }
                     }
                 )
-            },
-            floatingActionButton = {
-                AddItemDialog(onAdd = { text ->
-                    viewModel.addItem(text) { newItem ->
-                        if (isEditingTitle) {
-                            undoRedoManager.add(AddAction(newItem, viewModel))
-                        }
-                    }
-                    lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()
-                })
             }
         ) { padding ->
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -205,6 +198,23 @@ fun App() {
                     )
                 }
 
+                var showAddDialog by remember { mutableStateOf(false) }
+
+                if (showAddDialog) {
+                    AddItemDialog(
+                        onAdd = { text ->
+                            viewModel.addItem(text) { newItem ->
+                                if (isEditingTitle) {
+                                    undoRedoManager.add(AddAction(newItem, viewModel))
+                                }
+                            }
+                            lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()
+                            showAddDialog = false
+                        },
+                        onDismiss = { showAddDialog = false }
+                    )
+                }
+
                 LazyColumn(
                     state = lazyListState,
                     modifier = Modifier
@@ -213,6 +223,10 @@ fun App() {
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    item {
+                        AddItemTile(onClick = { showAddDialog = true })
+                    }
+
                     items(items, key = { it.id }) { item ->
                         val isDragging = draggingItemId == item.id
                         ListItemRow(
@@ -257,8 +271,8 @@ fun App() {
                                     onDragEnd = { 
                                         if (isEditingTitle && draggingItemId != null && initialDraggingIndex != null) {
                                             val finalIndex = items.indexOfFirst { it.id == draggingItemId }
-                                            if (finalIndex != -1 && finalIndex != initialDraggingIndex) {
-                                                undoRedoManager.add(MoveAction(initialDraggingIndex!!, finalIndex, viewModel))
+                                            if (finalIndex != -1 && finalIndex != (initialDraggingIndex!! - 1)) { // Adjusted for AddItemTile
+                                                undoRedoManager.add(MoveAction(initialDraggingIndex!! - 1, finalIndex, viewModel))
                                             }
                                         }
                                         draggingItemId = null
@@ -274,6 +288,10 @@ fun App() {
                                 )
                             }
                         )
+                    }
+
+                    item {
+                        AddItemTile(onClick = { showAddDialog = true })
                     }
                 }
             }
@@ -379,38 +397,69 @@ fun ListItemRow(
 }
 
 @Composable
-fun AddItemDialog(onAdd: (String) -> Unit) {
-    var showDialog by remember { mutableStateOf(false) }
+fun AddItemDialog(onAdd: (String) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
 
-    FloatingActionButton(onClick = { showDialog = true }) {
-        Icon(Icons.Default.Add, contentDescription = "Add Item")
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
     }
 
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { showDialog = false },
-            title = { Text("Add New Item") },
-            text = {
-                TextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    placeholder = { Text("Item name...") }
-                )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    if (text.isNotBlank()) {
-                        onAdd(text)
-                        text = ""
-                        showDialog = false
-                    }
-                }) { Text("Add") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDialog = false }) { Text("Cancel") }
-            }
-        )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add New Item") },
+        text = {
+            TextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text("Item name...") },
+                modifier = Modifier.focusRequester(focusRequester)
+            )
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (text.isNotBlank()) {
+                    onAdd(text)
+                    text = ""
+                }
+            }) { Text("Add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun AddItemTile(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Add item",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 
