@@ -34,6 +34,12 @@ class ListViewModel(private val repository: ListRepository) : ViewModel() {
         }
     }
 
+    fun setItemChecked(id: String, isChecked: Boolean) {
+        viewModelScope.launch {
+            repository.setItemChecked(id, isChecked)
+        }
+    }
+
     fun deleteItem(item: ListItem) {
         viewModelScope.launch {
             repository.deleteItem(item)

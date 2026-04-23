@@ -45,6 +45,10 @@ class ListRepository {
         collection.document(item.id).update("isChecked" to !item.isChecked)
     }
 
+    suspend fun setItemChecked(id: String, isChecked: Boolean) {
+        collection.document(id).update("isChecked" to isChecked)
+    }
+
     suspend fun deleteItem(item: ListItem) {
         collection.document(item.id).delete()
     }

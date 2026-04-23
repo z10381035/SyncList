@@ -219,7 +219,7 @@ fun App() {
                             item = item,
                             onToggle = { 
                                 if (!isEditingTitle) {
-                                    undoRedoManager.add(ToggleAction(item, viewModel))
+                                    undoRedoManager.add(ToggleAction(item.id, item.isChecked, !item.isChecked, viewModel))
                                 }
                                 viewModel.toggleItem(item)
                                 lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()

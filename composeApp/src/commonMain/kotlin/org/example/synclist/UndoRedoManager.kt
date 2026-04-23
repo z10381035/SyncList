@@ -15,13 +15,12 @@ class UndoRedoManager {
     val canRedo: Boolean get() = redoStack.isNotEmpty()
 
     fun execute(action: UndoRedoAction) {
-        action.redo() // Execute the action first
+        action.redo()
         undoStack.add(action)
         redoStack.clear()
         if (undoStack.size > 50) undoStack.removeAt(0)
     }
 
-    // Version that only records an action already executed
     fun add(action: UndoRedoAction) {
         undoStack.add(action)
         redoStack.clear()
@@ -46,11 +45,13 @@ class UndoRedoManager {
 }
 
 class ToggleAction(
-    private val item: ListItem,
+    private val itemId: String,
+    private val oldState: Boolean,
+    private val newState: Boolean,
     private val viewModel: ListViewModel
 ) : UndoRedoAction {
-    override fun undo() = viewModel.toggleItem(item)
-    override fun redo() = viewModel.toggleItem(item)
+    override fun undo() = viewModel.setItemChecked(itemId, oldState)
+    override fun redo() = viewModel.setItemChecked(itemId, newState)
 }
 
 class MoveAction(
