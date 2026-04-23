@@ -39,17 +39,16 @@ fun App() {
             val layoutInfo = lazyListState.layoutInfo
             val draggingItem = layoutInfo.visibleItemsInfo.find { it.index == fromIndex } ?: return@LaunchedEffect
             
-            val currentOffset = draggingItem.offset + dragOffset
+            val itemCenter = draggingItem.offset + dragOffset + draggingItem.size / 2
             val targetItem = layoutInfo.visibleItemsInfo.find { item ->
                 item.index != fromIndex && 
-                currentOffset > item.offset && 
-                currentOffset < item.offset + item.size
+                itemCenter > item.offset && 
+                itemCenter < item.offset + item.size
             }
             
             if (targetItem != null) {
                 viewModel.moveItem(fromIndex, targetItem.index)
                 draggingItemIndex = targetItem.index
-                // Adjust dragOffset to keep the item under the finger
                 dragOffset += (draggingItem.offset - targetItem.offset)
             }
         }
@@ -70,11 +69,9 @@ fun App() {
             ) {
                 itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                     val isDragging = draggingItemIndex == index
-                    ListItemRow(
-                        item = item,
-                        onToggle = { viewModel.toggleItem(item) },
-                        onDelete = { viewModel.deleteItem(item) },
+                    Box(
                         modifier = Modifier
+                            .fillMaxWidth()
                             .animateItem()
                             .zIndex(if (isDragging) 1f else 0f)
                             .graphicsLayer {
@@ -98,7 +95,13 @@ fun App() {
                                     }
                                 )
                             }
-                    )
+                    ) {
+                        ListItemRow(
+                            item = item,
+                            onToggle = { viewModel.toggleItem(item) },
+                            onDelete = { viewModel.deleteItem(item) }
+                        )
+                    }
                 }
             }
         }
@@ -109,7 +112,9 @@ fun App() {
 fun ListItemRow(item: ListItem, onToggle: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) {
     Card(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(
@@ -119,7 +124,10 @@ fun ListItemRow(item: ListItem, onToggle: () -> Unit, onDelete: () -> Unit, modi
             )
             Text(
                 text = item.text,
-                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp)
+                    .fillMaxHeight(),
                 style = MaterialTheme.typography.bodyLarge
             )
             IconButton(onClick = onDelete) {
