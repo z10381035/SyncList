@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,11 +18,13 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,6 +45,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.tooling.preview.Preview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.*
 import kotlin.time.Clock
@@ -64,6 +68,11 @@ fun App() {
         var appBarColor by remember { mutableStateOf<Color?>(null) }
         var showColorPicker by remember { mutableStateOf(false) }
         
+        var isMenuExpanded by remember { mutableStateOf(false) }
+        var isSearchMode by remember { mutableStateOf(false) }
+        var searchQuery by remember { mutableStateOf("") }
+        var showMetadata by remember { mutableStateOf(true) }
+
         val undoRedoManager = GlobalUndoRedoManager
         var previousTitle by remember { mutableStateOf(listTitle) }
         
@@ -87,14 +96,53 @@ fun App() {
             
             val targetItem = layoutInfo.visibleItemsInfo.find { item ->
                 item.key != draggingId && 
+                item.key is String && // Data items use String keys (IDs)
                 itemCenter > item.offset && 
                 itemCenter < item.offset + item.size
             }
             
             if (targetItem != null) {
-                val offsetDiff = draggingItem.offset - targetItem.offset
-                dragOffset += offsetDiff
-                viewModel.moveItem(draggingItem.index, targetItem.index)
+                // Find actual data indices to move
+                val fromIndex = items.indexOfFirst { it.id == draggingId }
+                val targetId = targetItem.key as String
+                val toIndex = items.indexOfFirst { it.id == targetId }
+
+                if (fromIndex != -1 && toIndex != -1) {
+                    val offsetDiff = draggingItem.offset - targetItem.offset
+                    dragOffset += offsetDiff
+                    viewModel.moveItem(fromIndex, toIndex)
+                }
+            }
+        }
+
+        // --- Autoscroll Loop ---
+        LaunchedEffect(draggingItemId, dragOffset) {
+            if (draggingItemId == null) return@LaunchedEffect
+            
+            while (true) {
+                val layoutInfo = lazyListState.layoutInfo
+                val draggingItem = layoutInfo.visibleItemsInfo.find { it.key == draggingItemId }
+                
+                if (draggingItem != null) {
+                    val viewPortHeight = layoutInfo.viewportSize.height
+                    val threshold = 150f // pixels from edge
+                    
+                    val absoluteTop = draggingItem.offset + dragOffset
+                    val absoluteBottom = absoluteTop + draggingItem.size
+                    
+                    if (absoluteTop < threshold) {
+                        val speed = (threshold - absoluteTop) / 5f
+                        lazyListState.scrollBy(-speed)
+                    } else if (absoluteBottom > viewPortHeight - threshold) {
+                        val speed = (absoluteBottom - (viewPortHeight - threshold)) / 5f
+                        lazyListState.scrollBy(speed)
+                    } else {
+                        break // Not near edge, exit loop to save battery
+                    }
+                } else {
+                    break
+                }
+                delay(10) // Smooth scroll interval
             }
         }
 
@@ -116,7 +164,18 @@ fun App() {
                         containerColor = appBarColor ?: MaterialTheme.colorScheme.surfaceContainer
                     ),
                     title = {
-                        if (isEditingTitle) {
+                        if (isSearchMode) {
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("Search items...") },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent
+                                )
+                            )
+                        } else if (isEditingTitle) {
                             TextField(
                                 value = listTitle,
                                 onValueChange = { listTitle = it },
@@ -131,7 +190,14 @@ fun App() {
                         }
                     },
                     navigationIcon = {
-                        if (isEditingTitle) {
+                        if (isSearchMode) {
+                            IconButton(onClick = { 
+                                isSearchMode = false 
+                                searchQuery = ""
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Close Search")
+                            }
+                        } else if (isEditingTitle) {
                             Box(
                                 modifier = Modifier
                                     .padding(start = 12.dp)
@@ -148,36 +214,60 @@ fun App() {
                         }
                     },
                     actions = {
-                        IconButton(
-                            onClick = { undoRedoManager.undo() },
-                            enabled = canUndo
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
-                        }
-                        IconButton(
-                            onClick = { undoRedoManager.redo() },
-                            enabled = canRedo
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
-                        }
-                        IconButton(onClick = { 
-                            if (isEditingTitle) {
-                                if (listTitle != previousTitle) {
-                                    undoRedoManager.add(RenameAction(previousTitle, listTitle) { listTitle = it })
-                                }
-                                isEditingTitle = false
-                            } else {
-                                previousTitle = listTitle
-                                isEditingTitle = true
+                        if (!isSearchMode) {
+                            IconButton(
+                                onClick = { undoRedoManager.undo() },
+                                enabled = canUndo
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
                             }
-                        }) {
-                            Icon(
-                                if (isEditingTitle) Icons.Default.Check else Icons.Default.Edit,
-                                contentDescription = if (isEditingTitle) "Done" else "Edit"
-                            )
-                        }
-                        IconButton(onClick = { /* TODO: Open Menu */ }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu")
+                            IconButton(
+                                onClick = { undoRedoManager.redo() },
+                                enabled = canRedo
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
+                            }
+                            IconButton(onClick = { 
+                                if (isEditingTitle) {
+                                    if (listTitle != previousTitle) {
+                                        undoRedoManager.add(RenameAction(previousTitle, listTitle) { listTitle = it })
+                                    }
+                                    isEditingTitle = false
+                                } else {
+                                    previousTitle = listTitle
+                                    isEditingTitle = true
+                                }
+                            }) {
+                                Icon(
+                                    if (isEditingTitle) Icons.Default.Check else Icons.Default.Edit,
+                                    contentDescription = if (isEditingTitle) "Done" else "Edit"
+                                )
+                            }
+                            Box {
+                                IconButton(onClick = { isMenuExpanded = true }) {
+                                    Icon(Icons.Default.Menu, contentDescription = "Menu")
+                                }
+                                DropdownMenu(
+                                    expanded = isMenuExpanded,
+                                    onDismissRequest = { isMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Search") },
+                                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                        onClick = {
+                                            isSearchMode = true
+                                            isMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (showMetadata) "Hide Metadata" else "Show Metadata") },
+                                        onClick = {
+                                            showMetadata = !showMetadata
+                                            isMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 )
@@ -185,27 +275,29 @@ fun App() {
         ) { padding ->
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
                 // Metadata Header
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = "Date created: ${formatTimestamp(createdTimestamp)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Last modified: ${formatTimestamp(lastModifiedTimestamp)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                if (showMetadata) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "Date created: ${formatTimestamp(createdTimestamp)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Last modified: ${formatTimestamp(lastModifiedTimestamp)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
                 }
-                HorizontalDivider(
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                )
 
                 var showAddDialog by remember { mutableStateOf(false) }
                 var addAtTop by remember { mutableStateOf(false) }
@@ -248,7 +340,9 @@ fun App() {
                         })
                     }
 
-                    items(items, key = { it.id }) { item ->
+                    val filteredItems = items.filter { it.text.contains(searchQuery, ignoreCase = true) }
+
+                    items(filteredItems, key = { it.id }) { item ->
                         val isDragging = draggingItemId == item.id
                         ListItemRow(
                             item = item,
@@ -264,7 +358,9 @@ fun App() {
                             },
                             isEditMode = isEditingTitle,
                             modifier = Modifier
-                                .animateItem()
+                                .animateItem(
+                                    placementSpec = androidx.compose.animation.core.tween(durationMillis = 150)
+                                )
                                 .zIndex(if (isDragging) 1f else 0f)
                                 .graphicsLayer {
                                     translationY = if (isDragging) dragOffset else 0f
@@ -272,14 +368,10 @@ fun App() {
                                 },
                             handleModifier = Modifier.pointerInput(item.id) {
                                 detectDragGestures(
-                                    onDragStart = { offset ->
-                                        lazyListState.layoutInfo.visibleItemsInfo
-                                            .find { info -> 
-                                                offset.y.toInt() in info.offset..(info.offset + info.size)
-                                            }?.let { 
-                                                draggingItemId = it.key as? String
-                                                initialDraggingIndex = it.index
-                                            }
+                                    onDragStart = { 
+                                        draggingItemId = item.id
+                                        initialDraggingIndex = lazyListState.layoutInfo.visibleItemsInfo
+                                            .find { it.key == item.id }?.index
                                     },
                                     onDrag = { change, dragAmount ->
                                         change.consume()
