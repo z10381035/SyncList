@@ -86,7 +86,41 @@ fun App() {
         var draggingItemId by remember { mutableStateOf<String?>(null) }
         var initialDraggingIndex by remember { mutableStateOf<Int?>(null) }
         var dragOffset by remember { mutableStateOf(0f) }
+        
+        // Use updated states for the coroutine loop to avoid stale values
+        val currentDragOffset by rememberUpdatedState(dragOffset)
 
+        // --- AUTOSCROLL LOOP (REFINED) ---
+        LaunchedEffect(draggingItemId) {
+            if (draggingItemId == null) return@LaunchedEffect
+            while (true) {
+                if (draggingItemId == null) break
+                
+                val layoutInfo = lazyListState.layoutInfo
+                val draggingItemInfo = layoutInfo.visibleItemsInfo.find { it.key == draggingItemId }
+                
+                if (draggingItemInfo != null) {
+                    val viewPortHeight = layoutInfo.viewportSize.height
+                    val threshold = viewPortHeight * 0.2f
+                    
+                    val top = draggingItemInfo.offset + currentDragOffset
+                    val bottom = top + draggingItemInfo.size
+                    
+                    if (top < threshold) {
+                        val speed = (threshold - top) / 3f
+                        val scrolled = lazyListState.scrollBy(-speed)
+                        dragOffset += scrolled // Update the actual state
+                    } else if (bottom > viewPortHeight - threshold) {
+                        val speed = (bottom - (viewPortHeight - threshold)) / 3f
+                        val scrolled = lazyListState.scrollBy(speed)
+                        dragOffset += scrolled // Update the actual state
+                    }
+                }
+                delay(10)
+            }
+        }
+
+        // --- REAL-TIME REORDERING (REFINED) ---
         LaunchedEffect(draggingItemId, dragOffset) {
             val draggingId = draggingItemId ?: return@LaunchedEffect
             val layoutInfo = lazyListState.layoutInfo
@@ -96,13 +130,12 @@ fun App() {
             
             val targetItem = layoutInfo.visibleItemsInfo.find { item ->
                 item.key != draggingId && 
-                item.key is String && // Data items use String keys (IDs)
+                item.key is String && 
                 itemCenter > item.offset && 
                 itemCenter < item.offset + item.size
             }
             
             if (targetItem != null) {
-                // Find actual data indices to move
                 val fromIndex = items.indexOfFirst { it.id == draggingId }
                 val targetId = targetItem.key as String
                 val toIndex = items.indexOfFirst { it.id == targetId }
@@ -112,37 +145,6 @@ fun App() {
                     dragOffset += offsetDiff
                     viewModel.moveItem(fromIndex, toIndex)
                 }
-            }
-        }
-
-        // --- Autoscroll Loop ---
-        LaunchedEffect(draggingItemId, dragOffset) {
-            if (draggingItemId == null) return@LaunchedEffect
-            
-            while (true) {
-                val layoutInfo = lazyListState.layoutInfo
-                val draggingItem = layoutInfo.visibleItemsInfo.find { it.key == draggingItemId }
-                
-                if (draggingItem != null) {
-                    val viewPortHeight = layoutInfo.viewportSize.height
-                    val threshold = 150f // pixels from edge
-                    
-                    val absoluteTop = draggingItem.offset + dragOffset
-                    val absoluteBottom = absoluteTop + draggingItem.size
-                    
-                    if (absoluteTop < threshold) {
-                        val speed = (threshold - absoluteTop) / 5f
-                        lazyListState.scrollBy(-speed)
-                    } else if (absoluteBottom > viewPortHeight - threshold) {
-                        val speed = (absoluteBottom - (viewPortHeight - threshold)) / 5f
-                        lazyListState.scrollBy(speed)
-                    } else {
-                        break // Not near edge, exit loop to save battery
-                    }
-                } else {
-                    break
-                }
-                delay(10) // Smooth scroll interval
             }
         }
 
@@ -359,7 +361,7 @@ fun App() {
                             isEditMode = isEditingTitle,
                             modifier = Modifier
                                 .animateItem(
-                                    placementSpec = androidx.compose.animation.core.tween(durationMillis = 150)
+                                    placementSpec = null
                                 )
                                 .zIndex(if (isDragging) 1f else 0f)
                                 .graphicsLayer {
