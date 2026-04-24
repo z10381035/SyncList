@@ -163,7 +163,7 @@ fun App() {
             topBar = {
                 CenterAlignedTopAppBar(
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = appBarColor ?: MaterialTheme.colorScheme.surfaceContainer
+                        containerColor = appBarColor ?: MaterialTheme.colorScheme.primary
                     ),
                     title = {
                         if (isSearchMode) {
