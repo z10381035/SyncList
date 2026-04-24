@@ -19,34 +19,36 @@ class ListRepository {
         }
     }
 
-    suspend fun addItem(text: String): ListItem {
-        val maxPosition = collection.orderBy("position", Direction.DESCENDING)
+    suspend fun saveItem(item: ListItem) {
+        collection.document(item.id).set(item)
+    }
+
+    suspend fun getMinPosition(): Double {
+        return collection.orderBy("position", Direction.ASCENDING)
             .limit(1)
             .get()
             .documents
             .firstOrNull()
             ?.data<ListItem>()
             ?.position ?: 0.0
-
-        val newItem = ListItem(
-            text = text, 
-            timestamp = Clock.System.now().toEpochMilliseconds(),
-            position = maxPosition + 1.0
-        )
-        val ref = collection.add(newItem)
-        return newItem.copy(id = ref.id)
     }
 
-    suspend fun restoreItem(item: ListItem) {
-        collection.document(item.id).set(item)
-    }
-
-    suspend fun toggleItem(item: ListItem) {
-        collection.document(item.id).update("isChecked" to !item.isChecked)
+    suspend fun getMaxPosition(): Double {
+        return collection.orderBy("position", Direction.DESCENDING)
+            .limit(1)
+            .get()
+            .documents
+            .firstOrNull()
+            ?.data<ListItem>()
+            ?.position ?: 0.0
     }
 
     suspend fun setItemChecked(id: String, isChecked: Boolean) {
         collection.document(id).update("isChecked" to isChecked)
+    }
+
+    suspend fun toggleItem(item: ListItem) {
+        collection.document(item.id).update("isChecked" to !item.isChecked)
     }
 
     suspend fun deleteItem(item: ListItem) {

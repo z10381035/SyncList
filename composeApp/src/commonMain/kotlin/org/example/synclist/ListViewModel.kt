@@ -2,10 +2,12 @@ package org.example.synclist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ListViewModel(private val repository: ListRepository) : ViewModel() {
     val items: StateFlow<List<ListItem>> = repository.getItems()
@@ -15,45 +17,40 @@ class ListViewModel(private val repository: ListRepository) : ViewModel() {
             initialValue = emptyList()
         )
 
-    fun addItem(text: String, onAdded: ((ListItem) -> Unit)? = null) {
-        viewModelScope.launch {
-            val item = repository.addItem(text)
-            onAdded?.invoke(item)
+    fun addItemDirectly(item: ListItem) {
+        viewModelScope.launch(Dispatchers.Main) {
+            repository.saveItem(item)
         }
     }
 
-    fun addItemDirectly(item: ListItem) {
-        viewModelScope.launch {
-            repository.restoreItem(item)
+    suspend fun getNextPosition(atTop: Boolean): Double = withContext(Dispatchers.Main) {
+        if (atTop) {
+            repository.getMinPosition() - 1.0
+        } else {
+            repository.getMaxPosition() + 1.0
         }
     }
 
     fun toggleItem(item: ListItem) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Main) {
             repository.toggleItem(item)
         }
     }
 
     fun setItemChecked(id: String, isChecked: Boolean) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Main) {
             repository.setItemChecked(id, isChecked)
         }
     }
 
     fun deleteItem(item: ListItem) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Main) {
             repository.deleteItem(item)
         }
     }
 
-    fun restoreItem(item: ListItem) {
-        viewModelScope.launch {
-            repository.restoreItem(item)
-        }
-    }
-
     fun moveItem(fromIndex: Int, toIndex: Int) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Main) {
             val currentItems = items.value.toMutableList()
             if (fromIndex !in currentItems.indices || toIndex !in currentItems.indices) return@launch
 

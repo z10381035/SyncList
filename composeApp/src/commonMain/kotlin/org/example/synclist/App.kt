@@ -36,11 +36,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.tooling.preview.Preview
+import kotlinx.coroutines.launch
 import kotlin.math.*
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -55,14 +57,18 @@ fun App() {
         val repository = remember { ListRepository() }
         val viewModel: ListViewModel = viewModel { ListViewModel(repository) }
         val items by viewModel.items.collectAsStateWithLifecycle()
+        val scope = rememberCoroutineScope()
 
         var listTitle by remember { mutableStateOf("SyncList") }
         var isEditingTitle by remember { mutableStateOf(false) }
         var appBarColor by remember { mutableStateOf<Color?>(null) }
         var showColorPicker by remember { mutableStateOf(false) }
         
-        val undoRedoManager = remember { UndoRedoManager() }
+        val undoRedoManager = GlobalUndoRedoManager
         var previousTitle by remember { mutableStateOf(listTitle) }
+        
+        val canUndo = globalCanUndo
+        val canRedo = globalCanRedo
 
         var createdTimestamp by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
         var lastModifiedTimestamp by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
@@ -77,7 +83,6 @@ fun App() {
             val layoutInfo = lazyListState.layoutInfo
             val draggingItem = layoutInfo.visibleItemsInfo.find { it.key == draggingId } ?: return@LaunchedEffect
             
-            // Calculate item center in viewport coordinates
             val itemCenter = draggingItem.offset + (draggingItem.size / 2) + dragOffset
             
             val targetItem = layoutInfo.visibleItemsInfo.find { item ->
@@ -145,13 +150,13 @@ fun App() {
                     actions = {
                         IconButton(
                             onClick = { undoRedoManager.undo() },
-                            enabled = undoRedoManager.canUndo
+                            enabled = canUndo
                         ) {
                             Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
                         }
                         IconButton(
                             onClick = { undoRedoManager.redo() },
-                            enabled = undoRedoManager.canRedo
+                            enabled = canRedo
                         ) {
                             Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
                         }
@@ -199,16 +204,25 @@ fun App() {
                 }
 
                 var showAddDialog by remember { mutableStateOf(false) }
+                var addAtTop by remember { mutableStateOf(false) }
 
                 if (showAddDialog) {
                     AddItemDialog(
                         onAdd = { text ->
-                            viewModel.addItem(text) { newItem ->
-                                if (isEditingTitle) {
-                                    undoRedoManager.add(AddAction(newItem, viewModel))
-                                }
+                            scope.launch {
+                                val pos = viewModel.getNextPosition(addAtTop)
+                                val newItem = ListItem(
+                                    id = (Clock.System.now().toEpochMilliseconds() + (0..1000).random()).toString(),
+                                    text = text,
+                                    timestamp = Clock.System.now().toEpochMilliseconds(),
+                                    position = pos
+                                )
+                                // Record in history INSTANTLY
+                                undoRedoManager.add(AddAction(newItem, viewModel))
+                                // Save to Firebase in background
+                                viewModel.addItemDirectly(newItem)
+                                lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()
                             }
-                            lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()
                             showAddDialog = false
                         },
                         onDismiss = { showAddDialog = false }
@@ -224,7 +238,10 @@ fun App() {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item {
-                        AddItemTile(onClick = { showAddDialog = true })
+                        AddItemTile(onClick = { 
+                            addAtTop = true
+                            showAddDialog = true 
+                        })
                     }
 
                     items(items, key = { it.id }) { item ->
@@ -232,16 +249,12 @@ fun App() {
                         ListItemRow(
                             item = item,
                             onToggle = { 
-                                if (!isEditingTitle) {
-                                    undoRedoManager.add(ToggleAction(item.id, item.isChecked, !item.isChecked, viewModel))
-                                }
+                                undoRedoManager.add(ToggleAction(item.id, item.isChecked, !item.isChecked, viewModel))
                                 viewModel.toggleItem(item)
                                 lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()
                             },
                             onDelete = { 
-                                if (isEditingTitle) {
-                                    undoRedoManager.add(DeleteAction(item, viewModel))
-                                }
+                                undoRedoManager.add(DeleteAction(item, viewModel))
                                 viewModel.deleteItem(item)
                                 lastModifiedTimestamp = Clock.System.now().toEpochMilliseconds()
                             },
@@ -271,7 +284,7 @@ fun App() {
                                     onDragEnd = { 
                                         if (isEditingTitle && draggingItemId != null && initialDraggingIndex != null) {
                                             val finalIndex = items.indexOfFirst { it.id == draggingItemId }
-                                            if (finalIndex != -1 && finalIndex != (initialDraggingIndex!! - 1)) { // Adjusted for AddItemTile
+                                            if (finalIndex != -1 && finalIndex != (initialDraggingIndex!! - 1)) {
                                                 undoRedoManager.add(MoveAction(initialDraggingIndex!! - 1, finalIndex, viewModel))
                                             }
                                         }
@@ -291,7 +304,10 @@ fun App() {
                     }
 
                     item {
-                        AddItemTile(onClick = { showAddDialog = true })
+                        AddItemTile(onClick = { 
+                            addAtTop = false
+                            showAddDialog = true 
+                        })
                     }
                 }
             }
@@ -413,7 +429,10 @@ fun AddItemDialog(onAdd: (String) -> Unit, onDismiss: () -> Unit) {
                 value = text,
                 onValueChange = { text = it },
                 placeholder = { Text("Item name...") },
-                modifier = Modifier.focusRequester(focusRequester)
+                modifier = Modifier.focusRequester(focusRequester),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences
+                )
             )
         },
         confirmButton = {

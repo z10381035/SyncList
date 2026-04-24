@@ -7,24 +7,26 @@ interface UndoRedoAction {
     fun redo()
 }
 
-class UndoRedoManager {
-    private val undoStack = mutableStateListOf<UndoRedoAction>()
-    private val redoStack = mutableStateListOf<UndoRedoAction>()
+/**
+ * Global state variables that Compose can watch from anywhere in the app.
+ */
+var globalCanUndo by mutableStateOf(false)
+var globalCanRedo by mutableStateOf(false)
 
-    val canUndo: Boolean get() = undoStack.isNotEmpty()
-    val canRedo: Boolean get() = redoStack.isNotEmpty()
-
-    fun execute(action: UndoRedoAction) {
-        action.redo()
-        undoStack.add(action)
-        redoStack.clear()
-        if (undoStack.size > 50) undoStack.removeAt(0)
-    }
+/**
+ * A central, global history system that tracks the last 100 actions.
+ */
+object GlobalUndoRedoManager {
+    private val undoStack = mutableListOf<UndoRedoAction>()
+    private val redoStack = mutableListOf<UndoRedoAction>()
 
     fun add(action: UndoRedoAction) {
         undoStack.add(action)
         redoStack.clear()
-        if (undoStack.size > 50) undoStack.removeAt(0)
+        if (undoStack.size > 100) {
+            undoStack.removeAt(0)
+        }
+        updateFlags()
     }
 
     fun undo() {
@@ -32,6 +34,7 @@ class UndoRedoManager {
             val action = undoStack.removeAt(undoStack.size - 1)
             action.undo()
             redoStack.add(action)
+            updateFlags()
         }
     }
 
@@ -40,7 +43,13 @@ class UndoRedoManager {
             val action = redoStack.removeAt(redoStack.size - 1)
             action.redo()
             undoStack.add(action)
+            updateFlags()
         }
+    }
+
+    private fun updateFlags() {
+        globalCanUndo = undoStack.isNotEmpty()
+        globalCanRedo = redoStack.isNotEmpty()
     }
 }
 
@@ -77,13 +86,13 @@ class AddAction(
     private val viewModel: ListViewModel
 ) : UndoRedoAction {
     override fun undo() = viewModel.deleteItem(item)
-    override fun redo() = viewModel.restoreItem(item)
+    override fun redo() = viewModel.addItemDirectly(item)
 }
 
 class DeleteAction(
     private val item: ListItem,
     private val viewModel: ListViewModel
 ) : UndoRedoAction {
-    override fun undo() = viewModel.restoreItem(item)
+    override fun undo() = viewModel.addItemDirectly(item)
     override fun redo() = viewModel.deleteItem(item)
 }
