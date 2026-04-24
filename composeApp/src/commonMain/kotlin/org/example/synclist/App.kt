@@ -184,24 +184,28 @@ fun App() {
             }
         ) { padding ->
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                // Metadata Row
-                Row(
+                // Metadata Header
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
                         text = "Date created: ${formatTimestamp(createdTimestamp)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Last modified: ${formatTimestamp(lastModifiedTimestamp)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
 
                 var showAddDialog by remember { mutableStateOf(false) }
                 var addAtTop by remember { mutableStateOf(false) }
