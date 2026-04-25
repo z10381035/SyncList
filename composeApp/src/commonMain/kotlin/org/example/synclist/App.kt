@@ -188,131 +188,153 @@ fun App() {
 
         Scaffold(
             topBar = {
-                CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = appBarColor ?: MaterialTheme.colorScheme.primary,
-                        titleContentColor = contentColor,
-                        navigationIconContentColor = contentColor,
-                        actionIconContentColor = contentColor
-                    ),
-                    title = {
-                        if (isSearchMode) {
-                            TextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                placeholder = { Text("Search...", color = contentColor.copy(alpha = 0.7f)) },
-                                singleLine = true,
-                                textStyle = LocalTextStyle.current.copy(
-                                    textAlign = TextAlign.Center,
+                Column(
+                    modifier = Modifier
+                        .background(appBarColor ?: MaterialTheme.colorScheme.primary)
+                        .statusBarsPadding()
+                ) {
+                    // Tier 1: Title & Navigation
+                    CenterAlignedTopAppBar(
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            containerColor = Color.Transparent,
+                            titleContentColor = contentColor,
+                            navigationIconContentColor = contentColor,
+                            actionIconContentColor = contentColor
+                        ),
+                        title = {
+                            if (isSearchMode) {
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    placeholder = { Text("Search...", color = contentColor.copy(alpha = 0.7f)) },
+                                    singleLine = true,
+                                    textStyle = LocalTextStyle.current.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = contentColor
+                                    ),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        cursorColor = contentColor
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            } else if (isEditingTitle) {
+                                TextField(
+                                    value = listTitle,
+                                    onValueChange = { listTitle = it },
+                                    singleLine = true,
+                                    textStyle = LocalTextStyle.current.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = contentColor
+                                    ),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        cursorColor = contentColor
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            } else {
+                                Text(
+                                    text = listTitle,
                                     fontWeight = FontWeight.Bold,
-                                    color = contentColor
-                                ),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    cursorColor = contentColor
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else if (isEditingTitle) {
-                            TextField(
-                                value = listTitle,
-                                onValueChange = { listTitle = it },
-                                singleLine = true,
-                                textStyle = LocalTextStyle.current.copy(
-                                    textAlign = TextAlign.Center,
-                                    fontWeight = FontWeight.Bold,
-                                    color = contentColor
-                                ),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    cursorColor = contentColor
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
-                            Text(
-                                text = listTitle,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        if (isSearchMode) {
-                            IconButton(onClick = { 
-                                isSearchMode = false 
-                                searchQuery = ""
-                            }) {
-                                Icon(
-                                    Icons.Default.Close, 
-                                    contentDescription = "Close Search",
-                                    modifier = Modifier.size(32.dp)
+                                    maxLines = 1
                                 )
                             }
-                        } else {
-                            IconButton(onClick = { /* Handle navigation back */ }) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack, 
-                                    contentDescription = "Back",
-                                    modifier = Modifier.size(32.dp)
-                                )
+                        },
+                        navigationIcon = {
+                            if (isSearchMode) {
+                                IconButton(onClick = { 
+                                    isSearchMode = false 
+                                    searchQuery = ""
+                                }) {
+                                    Icon(
+                                        Icons.Default.Close, 
+                                        contentDescription = "Close Search",
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            } else {
+                                IconButton(onClick = { /* Handle navigation back */ }) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowBack, 
+                                        contentDescription = "Back",
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
                             }
                         }
-                    },
-                    actions = {
-                        if (!isSearchMode) {
+                    )
+
+                    // Tier 2: Dedicated Action Row
+                    if (!isSearchMode) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp, horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             IconButton(
                                 onClick = { undoRedoManager.undo() },
-                                enabled = canUndo
+                                enabled = canUndo,
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.Undo, 
                                     contentDescription = "Undo",
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(36.dp),
+                                    tint = if (canUndo) contentColor else contentColor.copy(alpha = 0.38f)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(16.dp))
                             IconButton(
                                 onClick = { undoRedoManager.redo() },
-                                enabled = canRedo
+                                enabled = canRedo,
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.Redo, 
                                     contentDescription = "Redo",
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(36.dp),
+                                    tint = if (canRedo) contentColor else contentColor.copy(alpha = 0.38f)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            IconButton(onClick = { 
-                                if (isEditingTitle) {
-                                    if (listTitle != previousTitle) {
-                                        undoRedoManager.add(RenameAction(previousTitle, listTitle) { listTitle = it })
+                            IconButton(
+                                onClick = { 
+                                    if (isEditingTitle) {
+                                        if (listTitle != previousTitle) {
+                                            undoRedoManager.add(RenameAction(previousTitle, listTitle) { listTitle = it })
+                                        }
+                                        isEditingTitle = false
+                                    } else {
+                                        previousTitle = listTitle
+                                        isEditingTitle = true
                                     }
-                                    isEditingTitle = false
-                                } else {
-                                    previousTitle = listTitle
-                                    isEditingTitle = true
-                                }
-                            }) {
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
                                 Icon(
                                     if (isEditingTitle) Icons.Default.Check else Icons.Default.Edit,
                                     contentDescription = if (isEditingTitle) "Done" else "Edit",
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(36.dp),
+                                    tint = contentColor
                                 )
                             }
-                            Spacer(modifier = Modifier.width(16.dp))
                             Box {
-                                IconButton(onClick = { isMenuExpanded = true }) {
+                                IconButton(
+                                    onClick = { isMenuExpanded = true },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
                                     Icon(
                                         Icons.Default.Menu, 
                                         contentDescription = "Menu",
-                                        modifier = Modifier.size(32.dp)
+                                        modifier = Modifier.size(36.dp),
+                                        tint = contentColor
                                     )
                                 }
                                 DropdownMenu(
@@ -373,9 +395,10 @@ fun App() {
                             }
                         }
                     }
-                )
+                }
             }
-        ) { padding ->
+        )
+{ padding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
