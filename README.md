@@ -1,63 +1,65 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Web.
+# SyncList 🚀
+**Powered by Gemini AI Assistance**
 
-* [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./composeApp/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./composeApp/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./composeApp/src/jvmMain/kotlin)
-    folder is the appropriate location.
-
-* [/iosApp](./iosApp/iosApp) contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
-
-### Build and Run Android Application
-
-To build and run the development version of the Android app, use the run configuration from the run widget
-in your IDE’s toolbar or build it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:assembleDebug
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:assembleDebug
-  ```
-
-### Build and Run Web Application
-
-To build and run the development version of the web app, use the run configuration from the run widget
-in your IDE's toolbar or run it directly from the terminal:
-- for the Wasm target (faster, modern browsers):
-  - on macOS/Linux
-    ```shell
-    ./gradlew :composeApp:wasmJsBrowserDevelopmentRun
-    ```
-  - on Windows
-    ```shell
-    .\gradlew.bat :composeApp:wasmJsBrowserDevelopmentRun
-    ```
-- for the JS target (slower, supports older browsers):
-  - on macOS/Linux
-    ```shell
-    ./gradlew :composeApp:jsBrowserDevelopmentRun
-    ```
-  - on Windows
-    ```shell
-    .\gradlew.bat :composeApp:jsBrowserDevelopmentRun
-    ```
-
-### Build and Run iOS Application
-
-To build and run the development version of the iOS app, use the run configuration from the run widget
-in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+SyncList is a high-performance, professional task management application built with **Kotlin Multiplatform** and **Jetpack Compose**. It features real-time Firebase synchronization, a robust Undo/Redo "Time Machine," and an industry-grade Color Studio for deep UI personalization.
 
 ---
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),
-[Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform/#compose-multiplatform),
-[Kotlin/Wasm](https://kotl.in/wasm/)…
+## 🌟 Key Features
 
-We would appreciate your feedback on Compose/Web and Kotlin/Wasm in the public Slack channel [#compose-web](https://slack-chats.kotlinlang.org/c/compose-web).
-If you face any issues, please report them on [YouTrack](https://youtrack.jetbrains.com/newIssue?project=CMP).
+### 🔄 Real-time Synchronization
+- Powered by **Firebase Firestore** with custom `position` logic for stable, manual list ordering.
+- Instant updates across all connected devices (Android, iOS, Web).
+
+### ⏳ Advanced Undo/Redo System
+- A comprehensive "Time Machine" that tracks every action—from checkbox toggles to item reordering.
+- Uses **Explicit State Snapshots** to ensure perfect restoration even with network latency.
+
+### 🎨 Color Studio Pro
+- **Dynamic Theming**: Personalize both the Top Bar and the List Background.
+- **High-Precision Control**: Features a 10-color preset grid, a vertical Brightness (Value) slider, and Hex code input.
+- **Smart Contrast Engine**: Text and icons automatically flip between Black and White based on background luminance for 100% readability.
+
+### ⚡ High-Performance Reordering
+- **Instant Snap**: Teleporting item movement for a zero-latency feel.
+- **Pro Autoscroll**: Continuous, velocity-scaled scrolling when dragging items to viewport edges.
+
+---
+
+## 🤖 AI Disclosure & Development Process
+
+### The AI Integration
+This project utilized **Gemini AI** as a sophisticated co-pilot to accelerate the development lifecycle. AI was leveraged for:
+- Initial scaffolding and boilerplate generation.
+- Rapid prototyping of complex mathematical UI components (like the Color Wheel).
+- Continuous debugging and performance optimization.
+
+### Human-in-the-Loop Architecture
+While AI assisted in high-velocity output, the **Human Lead Architect** acted as the primary auditor, editor, and logical engineer. All core logic, security protocols, and UI refinements were manually inspected and polished to ensure production-grade quality.
+
+#### 🛠️ Examples of Human-Led Refinement:
+1.  **Explicit State Snapshots**: Manually refactored the Undo system to use fixed state values rather than relative toggles, fixing a critical synchronization bug.
+2.  **Scroll-Aware Reordering**: Engineered a manual offset compensation logic to keep items "glued" to the finger during high-speed autoscrolling.
+3.  **Luminance Engine**: Specifically requested and audited the dynamic contrast logic to ensure accessibility across the entire color spectrum.
+4.  **Two-Tier Dashboard**: Redesigned the Top Bar hierarchy to prioritize title visibility and ergonomic touch targets.
+5.  **Rigid Palette Geometry**: Diagnosed and fixed an oblong rendering bug in the custom color palette by enforcing strict aspect ratio constraints.
+6.  **Gesture Loop Refactor**: Rewrote unstable pointer input blocks into a continuous `awaitEachGesture` loop to fix "sticky" sliders.
+7.  **Auto-Focus Entry**: Optimized the UX by manually integrating focus requesters and sentence-case keyboards into all input dialogs.
+
+---
+
+## 🛠️ Tech Stack
+- **Framework**: Compose Multiplatform
+- **Language**: Kotlin
+- **Backend**: Firebase Firestore
+- **State Management**: Kotlin Flow & ViewModel
+- **AI Co-pilot**: Gemini AI
+
+---
+
+### Build and Run Android Application
+- Windows: `.\gradlew.bat :composeApp:assembleDebug`
+- macOS/Linux: `./gradlew :composeApp:assembleDebug`
+
+---
+*SyncList is a showcase of AI-Literacy in modern software engineering—using advanced tools to achieve maximum velocity without compromising on architectural integrity.*
