@@ -710,74 +710,120 @@ fun ColorPickerDialog(
 
                 // 3. The Color Wheel
                 ColorWheel(
-                    modifier = Modifier.size(220.dp),
+                    modifier = Modifier.size(240.dp),
                     initialColor = selectedColor,
                     onColorChange = { selectedColor = it }
                 )
 
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 4. Hex Input
+                val hexCode = remember(selectedColor) {
+                    val r = (selectedColor.red * 255).toInt()
+                    val g = (selectedColor.green * 255).toInt()
+                    val b = (selectedColor.blue * 255).toInt()
+                    "#" + r.toString(16).padStart(2, '0').uppercase() +
+                          g.toString(16).padStart(2, '0').uppercase() +
+                          b.toString(16).padStart(2, '0').uppercase()
+                }
+                
+                OutlinedTextField(
+                    value = hexCode,
+                    onValueChange = { input ->
+                        val clean = input.removePrefix("#").trim()
+                        if (clean.length == 6 && clean.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) {
+                            try {
+                                val r = clean.substring(0, 2).toInt(16)
+                                val g = clean.substring(2, 4).toInt(16)
+                                val b = clean.substring(4, 6).toInt(16)
+                                selectedColor = Color(r, g, b)
+                            } catch (e: Exception) { /* Invalid hex */ }
+                        }
+                    },
+                    label = { Text("Hex Code") },
+                    singleLine = true,
+                    textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
+                    modifier = Modifier.width(120.dp)
+                )
+
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                // 4. Saved Palette
+                // 5. Saved Palette
                 Text(
                     "Saved custom colors",
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.align(Alignment.Start)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+                
+                var showDeleteConfirm by remember { mutableStateOf<Int?>(null) }
+                
+                if (showDeleteConfirm != null) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteConfirm = null },
+                        title = { Text("Confirm Deletion") },
+                        text = { Text("Delete this saved color?") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                savedCustomColors[showDeleteConfirm!!] = null
+                                showDeleteConfirm = null
+                            }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
+                        }
+                    )
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     for (i in 0 until 7) {
                         val color = savedCustomColors.getOrNull(i)
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(color ?: Color.Transparent)
-                                .border(1.dp, if (color != null) Color.LightGray else Color.Gray.copy(alpha = 0.3f), CircleShape)
-                                .pointerInput(i) {
-                                    detectDragGestures(
-                                        onDragStart = { /* No-op to enable other gestures if needed */ },
-                                        onDragEnd = { /* No-op */ },
-                                        onDragCancel = { /* No-op */ },
-                                        onDrag = { _, _ -> /* No-op */ }
-                                    )
-                                }
-                                .pointerInput(i) {
-                                    awaitPointerEventScope {
-                                        while (true) {
-                                            awaitFirstDown()
-                                            
-                                            // Wait for up or timeout for long press
-                                            val upEvent = withTimeoutOrNull<PointerInputChange?>(500) {
-                                                waitForUpOrCancellation()
-                                            }
-                                            
-                                            if (upEvent == null) {
-                                                // Timeout reached, it's a long press
-                                                savedCustomColors[i] = null
-                                            } else {
-                                                // Up event received before timeout
-                                                if (color != null) {
-                                                    selectedColor = color
-                                                } else {
-                                                    savedCustomColors[i] = selectedColor
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(color ?: Color.Transparent)
+                                    .border(1.dp, if (color != null) Color.LightGray else Color.Gray.copy(alpha = 0.3f), CircleShape)
+                                    .pointerInput(i) {
+                                        awaitPointerEventScope {
+                                            while (true) {
+                                                awaitFirstDown()
+                                                val upEvent = withTimeoutOrNull<PointerInputChange?>(500) {
+                                                    waitForUpOrCancellation()
+                                                }
+                                                if (upEvent != null) {
+                                                    if (color != null) {
+                                                        selectedColor = color
+                                                    } else {
+                                                        savedCustomColors[i] = selectedColor
+                                                    }
                                                 }
                                             }
                                         }
                                     }
+                            )
+                            if (color != null) {
+                                IconButton(
+                                    onClick = { showDeleteConfirm = i },
+                                    modifier = Modifier.size(24.dp).padding(top = 4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Delete",
+                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
-                        )
+                            } else {
+                                Spacer(modifier = Modifier.size(24.dp))
+                            }
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Long press to delete",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
             }
         },
         confirmButton = {
