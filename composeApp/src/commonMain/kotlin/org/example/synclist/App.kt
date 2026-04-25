@@ -65,6 +65,10 @@ import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
+enum class Screen {
+    List, Settings
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 @Preview
@@ -87,6 +91,7 @@ fun App() {
         var isSearchMode by remember { mutableStateOf(false) }
         var searchQuery by remember { mutableStateOf("") }
         var showMetadata by remember { mutableStateOf(true) }
+        var currentScreen by remember { mutableStateOf(Screen.List) }
 
         val undoRedoManager = GlobalUndoRedoManager
         var previousTitle by remember { mutableStateOf(listTitle) }
@@ -188,8 +193,17 @@ fun App() {
             )
         }
 
-        Scaffold(
-            topBar = {
+        if (currentScreen == Screen.Settings) {
+            SettingsPage(
+                showMetadata = showMetadata,
+                onShowMetadataChange = { showMetadata = it },
+                appBarColor = appBarColor ?: MaterialTheme.colorScheme.primary,
+                contentColor = contentColor,
+                onBack = { currentScreen = Screen.List }
+            )
+        } else {
+            Scaffold(
+                topBar = {
                 Column(
                     modifier = Modifier
                         .background(appBarColor ?: MaterialTheme.colorScheme.primary)
@@ -217,16 +231,17 @@ fun App() {
                                     cursorBrush = Brush.verticalGradient(listOf(contentColor, contentColor)),
                                     modifier = Modifier.fillMaxWidth(),
                                     decorationBox = { innerTextField ->
-                                        if (searchQuery.isEmpty()) {
-                                            Text(
-                                                "Search...", 
-                                                color = contentColor.copy(alpha = 0.7f),
-                                                textAlign = TextAlign.Center,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
+                                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                            if (searchQuery.isEmpty()) {
+                                                Text(
+                                                    "Search...", 
+                                                    color = contentColor.copy(alpha = 0.7f),
+                                                    textAlign = TextAlign.Center,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            innerTextField()
                                         }
-                                        innerTextField()
                                     }
                                 )
                             } else if (isEditingTitle) {
@@ -242,7 +257,9 @@ fun App() {
                                     cursorBrush = Brush.verticalGradient(listOf(contentColor, contentColor)),
                                     modifier = Modifier.fillMaxWidth(),
                                     decorationBox = { innerTextField ->
-                                        innerTextField()
+                                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                            innerTextField()
+                                        }
                                     }
                                 )
                             } else {
@@ -362,9 +379,10 @@ fun App() {
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text(if (showMetadata) "Hide Metadata" else "Show Metadata") },
+                                        text = { Text("Settings") },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }, // Using Edit icon as a placeholder for Settings
                                         onClick = {
-                                            showMetadata = !showMetadata
+                                            currentScreen = Screen.Settings
                                             isMenuExpanded = false
                                         }
                                     )
@@ -556,6 +574,87 @@ fun App() {
                         )
                     }
                 }
+            }
+        }
+    }
+}
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsPage(
+    showMetadata: Boolean,
+    onShowMetadataChange: (Boolean) -> Unit,
+    appBarColor: Color,
+    contentColor: Color,
+    onBack: () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            Column(
+                modifier = Modifier
+                    .background(appBarColor)
+                    .statusBarsPadding()
+            ) {
+                CenterAlignedTopAppBar(
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = contentColor,
+                        navigationIconContentColor = contentColor
+                    ),
+                    title = {
+                        Text(
+                            text = "Settings",
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack, 
+                                contentDescription = "Back",
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    },
+                    actions = {
+                        // Counterweight for perfect title centering
+                        Box(modifier = Modifier.width(68.dp))
+                    }
+                )
+            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Hide Metadata",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "hides the date created and date modified labels for this list.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = !showMetadata,
+                    onCheckedChange = { onShowMetadataChange(!it) }
+                )
             }
         }
     }
