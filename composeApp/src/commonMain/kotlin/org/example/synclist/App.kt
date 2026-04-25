@@ -186,58 +186,59 @@ fun App() {
 
         Scaffold(
             topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
+                CenterAlignedTopAppBar(
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                         containerColor = appBarColor ?: MaterialTheme.colorScheme.primary,
                         titleContentColor = contentColor,
                         navigationIconContentColor = contentColor,
                         actionIconContentColor = contentColor
                     ),
                     title = {
-                        Box(modifier = Modifier.fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
-                            if (isSearchMode) {
-                                TextField(
-                                    value = searchQuery,
-                                    onValueChange = { searchQuery = it },
-                                    placeholder = { Text("Search...", color = contentColor.copy(alpha = 0.7f)) },
-                                    singleLine = true,
-                                    textStyle = LocalTextStyle.current.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = contentColor
-                                    ),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color.Transparent,
-                                        unfocusedContainerColor = Color.Transparent,
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        cursorColor = contentColor
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            } else if (isEditingTitle) {
-                                TextField(
-                                    value = listTitle,
-                                    onValueChange = { listTitle = it },
-                                    singleLine = true,
-                                    textStyle = LocalTextStyle.current.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = contentColor
-                                    ),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color.Transparent,
-                                        unfocusedContainerColor = Color.Transparent,
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        cursorColor = contentColor
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            } else {
-                                Text(
-                                    text = listTitle,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        if (isSearchMode) {
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("Search...", color = contentColor.copy(alpha = 0.7f)) },
+                                singleLine = true,
+                                textStyle = LocalTextStyle.current.copy(
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Bold,
+                                    color = contentColor
+                                ),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    cursorColor = contentColor
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else if (isEditingTitle) {
+                            TextField(
+                                value = listTitle,
+                                onValueChange = { listTitle = it },
+                                singleLine = true,
+                                textStyle = LocalTextStyle.current.copy(
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Bold,
+                                    color = contentColor
+                                ),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    cursorColor = contentColor
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            Text(
+                                text = listTitle,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     },
                     navigationIcon = {
@@ -274,7 +275,7 @@ fun App() {
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(16.dp))
                             IconButton(
                                 onClick = { undoRedoManager.redo() },
                                 enabled = canRedo
@@ -285,7 +286,7 @@ fun App() {
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(16.dp))
                             IconButton(onClick = { 
                                 if (isEditingTitle) {
                                     if (listTitle != previousTitle) {
@@ -303,7 +304,7 @@ fun App() {
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(16.dp))
                             Box {
                                 IconButton(onClick = { isMenuExpanded = true }) {
                                     Icon(
@@ -439,10 +440,13 @@ fun App() {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item {
-                        AddItemTile(onClick = { 
-                            addAtTop = true
-                            showAddDialog = true 
-                        })
+                        AddItemTile(
+                            contentColor = listItemContentColor,
+                            onClick = { 
+                                addAtTop = true
+                                showAddDialog = true 
+                            }
+                        )
                     }
 
                     val filteredItems = items.filter { it.text.contains(searchQuery, ignoreCase = true) }
@@ -506,10 +510,13 @@ fun App() {
                     }
 
                     item {
-                        AddItemTile(onClick = { 
-                            addAtTop = false
-                            showAddDialog = true 
-                        })
+                        AddItemTile(
+                            contentColor = listItemContentColor,
+                            onClick = { 
+                                addAtTop = false
+                                showAddDialog = true 
+                            }
+                        )
                     }
                 }
             }
@@ -666,15 +673,15 @@ fun AddItemDialog(onAdd: (String) -> Unit, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun AddItemTile(onClick: () -> Unit) {
+fun AddItemTile(contentColor: Color, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = contentColor.copy(alpha = 0.05f)
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+        border = BorderStroke(1.dp, contentColor.copy(alpha = 0.2f))
     ) {
         Row(
             modifier = Modifier
@@ -686,13 +693,13 @@ fun AddItemTile(onClick: () -> Unit) {
             Icon(
                 Icons.Default.Add,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
+                tint = contentColor
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Add item",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.primary
+                color = contentColor
             )
         }
     }
