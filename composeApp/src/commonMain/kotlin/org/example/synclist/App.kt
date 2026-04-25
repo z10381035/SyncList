@@ -276,6 +276,10 @@ fun App() {
                                     )
                                 }
                             }
+                        },
+                        actions = {
+                            // Dummy box to balance the navigation icon and ensure absolute title centering
+                            Box(modifier = Modifier.width(68.dp))
                         }
                     )
 
