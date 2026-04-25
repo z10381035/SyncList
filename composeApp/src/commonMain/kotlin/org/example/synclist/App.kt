@@ -722,7 +722,10 @@ fun ColorPickerDialog(
         Color.Green,
         Color.Blue,
         Color(0xFF800080), // Purple
-        Color(0xFFFFC0CB)  // Pink
+        Color(0xFFFFC0CB), // Pink
+        Color.Black,
+        Color.Gray,
+        Color.White
     )
 
     AlertDialog(
@@ -733,86 +736,125 @@ fun ColorPickerDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // 1. Rainbow Presets
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    rainbowColors.forEach { color ->
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(color)
-                                .border(1.dp, Color.LightGray, RoundedCornerShape(4.dp))
-                                .clickable { selectedColor = color }
-                        )
+                // 1. Rainbow Presets (2x5 Grid)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        rainbowColors.take(5).forEach { color ->
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(color)
+                                    .border(1.dp, Color.LightGray, RoundedCornerShape(4.dp))
+                                    .clickable { selectedColor = color }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        rainbowColors.drop(5).forEach { color ->
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(color)
+                                    .border(1.dp, Color.LightGray, RoundedCornerShape(4.dp))
+                                    .clickable { selectedColor = color }
+                            )
+                        }
                     }
                 }
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                // 2. Custom Color Preview
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(selectedColor)
-                        .border(2.dp, Color.Black, RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
+                // 2. Custom Color Center (Wheel + Slider)
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(240.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val luminance = 0.299 * selectedColor.red + 0.587 * selectedColor.green + 0.114 * selectedColor.blue
-                    Text(
-                        "Preview",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (luminance > 0.5) Color.Black else Color.White,
-                        fontWeight = FontWeight.Bold
+                    ColorWheel(
+                        modifier = Modifier.weight(1f),
+                        initialColor = selectedColor,
+                        onColorChange = { 
+                            // Preserve V when moving wheel
+                            val currentHsv = colorToHsv(selectedColor)
+                            val newHsv = colorToHsv(it)
+                            selectedColor = Color.hsv(newHsv[0], newHsv[1], currentHsv[2])
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    BrightnessSlider(
+                        modifier = Modifier.width(36.dp).fillMaxHeight(),
+                        initialColor = selectedColor,
+                        onColorChange = { selectedColor = it }
                     )
                 }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 3. The Color Wheel
-                ColorWheel(
-                    modifier = Modifier.size(240.dp),
-                    initialColor = selectedColor,
-                    onColorChange = { selectedColor = it }
-                )
 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // 4. Hex Input
-                val hexCode = remember(selectedColor) {
-                    val r = (selectedColor.red * 255).toInt()
-                    val g = (selectedColor.green * 255).toInt()
-                    val b = (selectedColor.blue * 255).toInt()
-                    "#" + r.toString(16).padStart(2, '0').uppercase() +
-                          g.toString(16).padStart(2, '0').uppercase() +
-                          b.toString(16).padStart(2, '0').uppercase()
+                // 3. Dashboard Row (Preview + Hex)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(selectedColor)
+                            .border(2.dp, Color.Black, RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val luminance = 0.299 * selectedColor.red + 0.587 * selectedColor.green + 0.114 * selectedColor.blue
+                        Text(
+                            "Preview",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (luminance > 0.5) Color.Black else Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    val hexCode = remember(selectedColor) {
+                        val r = (selectedColor.red * 255).roundToInt()
+                        val g = (selectedColor.green * 255).roundToInt()
+                        val b = (selectedColor.blue * 255).roundToInt()
+                        "#" + r.toString(16).padStart(2, '0').uppercase() +
+                              g.toString(16).padStart(2, '0').uppercase() +
+                              b.toString(16).padStart(2, '0').uppercase()
+                    }
+                    
+                    OutlinedTextField(
+                        value = hexCode,
+                        onValueChange = { input ->
+                            val clean = input.removePrefix("#").trim()
+                            if (clean.length == 6 && clean.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) {
+                                try {
+                                    val r = clean.substring(0, 2).toInt(16)
+                                    val g = clean.substring(2, 4).toInt(16)
+                                    val b = clean.substring(4, 6).toInt(16)
+                                    selectedColor = Color(r, g, b)
+                                } catch (e: Exception) { /* Invalid hex */ }
+                            }
+                        },
+                        label = { Text("Hex Code") },
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
+                        modifier = Modifier.width(120.dp)
+                    )
                 }
-                
-                OutlinedTextField(
-                    value = hexCode,
-                    onValueChange = { input ->
-                        val clean = input.removePrefix("#").trim()
-                        if (clean.length == 6 && clean.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) {
-                            try {
-                                val r = clean.substring(0, 2).toInt(16)
-                                val g = clean.substring(2, 4).toInt(16)
-                                val b = clean.substring(4, 6).toInt(16)
-                                selectedColor = Color(r, g, b)
-                            } catch (e: Exception) { /* Invalid hex */ }
-                        }
-                    },
-                    label = { Text("Hex Code") },
-                    singleLine = true,
-                    textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
-                    modifier = Modifier.width(120.dp)
-                )
 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                // 5. Saved Palette
+                // 4. Saved Palette
                 Text(
                     "Saved custom colors",
                     style = MaterialTheme.typography.labelSmall,
@@ -981,31 +1023,6 @@ fun ColorWheel(
         val radius = constraints.maxWidth / 2f
         val center = Offset(radius, radius)
 
-        // Helper to convert Color to HSV
-        fun colorToHsv(color: Color): FloatArray {
-            val r = color.red
-            val g = color.green
-            val b = color.blue
-            val max = max(r, max(g, b))
-            val min = min(r, min(g, b))
-            val delta = max - min
-            
-            var h = 0f
-            if (delta != 0f) {
-                h = when (max) {
-                    r -> (g - b) / delta + (if (g < b) 6 else 0)
-                    g -> (b - r) / delta + 2
-                    else -> (r - g) / delta + 4
-                }
-                h /= 6f
-            }
-            
-            val s = if (max == 0f) 0f else delta / max
-            val v = max
-            
-            return floatArrayOf(h * 360f, s, v)
-        }
-
         // Initialize HSV from initialColor
         var hsv by remember(initialColor) { mutableStateOf(colorToHsv(initialColor)) }
 
@@ -1032,7 +1049,7 @@ fun ColorWheel(
                         if (angle < 0) angle += 360f
                         
                         val saturation = dist / radius
-                        hsv = floatArrayOf(angle, saturation, 1f)
+                        hsv = floatArrayOf(angle, saturation, hsv[2]) // Preserve V
                         onColorChange(Color.hsv(hsv[0], hsv[1], hsv[2]))
                     }
                 }
@@ -1049,7 +1066,7 @@ fun ColorWheel(
                             if (angle < 0) angle += 360f
                             
                             val saturation = dist / radius
-                            hsv = floatArrayOf(angle, saturation, 1f)
+                            hsv = floatArrayOf(angle, saturation, hsv[2]) // Preserve V
                             onColorChange(Color.hsv(hsv[0], hsv[1], hsv[2]))
                         }
                     }
@@ -1078,6 +1095,88 @@ fun ColorWheel(
                 radius = 8.dp.toPx(),
                 center = thumbOffset,
                 style = Stroke(width = 2.dp.toPx())
+            )
+        }
+    }
+}
+
+// Helper to convert Color to HSV
+fun colorToHsv(color: Color): FloatArray {
+    val r = color.red
+    val g = color.green
+    val b = color.blue
+    val max = max(r, max(g, b))
+    val min = min(r, min(g, b))
+    val delta = max - min
+    
+    var h = 0f
+    if (delta != 0f) {
+        h = when (max) {
+            r -> (g - b) / delta + (if (g < b) 6 else 0)
+            g -> (b - r) / delta + 2
+            else -> (r - g) / delta + 4
+        }
+        h /= 6f
+    }
+    
+    val s = if (max == 0f) 0f else delta / max
+    val v = max
+    
+    return floatArrayOf(h * 360f, s, v)
+}
+
+@Composable
+fun BrightnessSlider(
+    modifier: Modifier = Modifier,
+    initialColor: Color,
+    onColorChange: (Color) -> Unit
+) {
+    val hsv = remember(initialColor) { colorToHsv(initialColor) }
+    
+    BoxWithConstraints(modifier = modifier) {
+        val height = constraints.maxHeight.toFloat()
+        
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(hsv[0], hsv[1]) {
+                    detectDragGestures { change, _ ->
+                        val y = change.position.y.coerceIn(0f, height)
+                        val brightness = 1f - (y / height)
+                        onColorChange(Color.hsv(hsv[0], hsv[1], brightness))
+                    }
+                }
+                .pointerInput(hsv[0], hsv[1]) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitFirstDown()
+                            val y = event.position.y.coerceIn(0f, height)
+                            val brightness = 1f - (y / height)
+                            onColorChange(Color.hsv(hsv[0], hsv[1], brightness))
+                        }
+                    }
+                }
+        ) {
+            // Background gradient from black to pure color (at current H/S)
+            val brush = Brush.verticalGradient(
+                colors = listOf(Color.hsv(hsv[0], hsv[1], 1f), Color.Black)
+            )
+            drawRect(brush = brush, size = size)
+            drawRect(color = Color.Black, size = size, style = Stroke(width = 1.dp.toPx()))
+            
+            // Thumb
+            val thumbY = (1f - hsv[2]) * size.height
+            drawRect(
+                color = Color.White,
+                topLeft = Offset(0f, thumbY - 4.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(size.width, 8.dp.toPx()),
+                style = Stroke(width = 2.dp.toPx())
+            )
+            drawRect(
+                color = Color.Black,
+                topLeft = Offset(0f, thumbY - 5.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(size.width, 10.dp.toPx()),
+                style = Stroke(width = 1.dp.toPx())
             )
         }
     }
