@@ -5,12 +5,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -69,6 +71,7 @@ fun App() {
         var isEditingTitle by remember { mutableStateOf(false) }
         var appBarColor by remember { mutableStateOf<Color?>(null) }
         var showColorPicker by remember { mutableStateOf(false) }
+        val recentColors = remember { mutableStateListOf<Color>() }
         
         var isMenuExpanded by remember { mutableStateOf(false) }
         var isSearchMode by remember { mutableStateOf(false) }
@@ -158,10 +161,19 @@ fun App() {
 
         if (showColorPicker) {
             ColorPickerDialog(
-                initialColor = appBarColor ?: MaterialTheme.colorScheme.primary,
+                initialColor = appBarColor ?: Color(0xFF6750A4),
+                recentColors = recentColors,
                 onDismiss = { showColorPicker = false },
                 onColorSelected = { 
                     appBarColor = it
+                    // Update history
+                    if (!recentColors.contains(it)) {
+                        recentColors.add(0, it)
+                        if (recentColors.size > 5) recentColors.removeAt(5)
+                    } else {
+                        recentColors.remove(it)
+                        recentColors.add(0, it)
+                    }
                     showColorPicker = false
                 }
             )
@@ -637,28 +649,103 @@ fun AddItemTile(onClick: () -> Unit) {
 @Composable
 fun ColorPickerDialog(
     initialColor: Color,
+    recentColors: List<Color>,
     onDismiss: () -> Unit,
     onColorSelected: (Color) -> Unit
 ) {
     var selectedColor by remember { mutableStateOf(initialColor) }
 
+    val rainbowColors = listOf(
+        Color.Red,
+        Color(0xFFFFA500), // Orange
+        Color.Yellow,
+        Color.Green,
+        Color.Blue,
+        Color(0xFF800080), // Purple
+        Color(0xFFFFC0CB)  // Pink
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Pick Top Bar Color") },
+        title = { Text("Color Studio", fontWeight = FontWeight.Bold) },
         text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // 1. Rainbow Presets
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    rainbowColors.forEach { color ->
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(color)
+                                .border(1.dp, Color.LightGray, RoundedCornerShape(4.dp))
+                                .clickable { selectedColor = color }
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // 2. Custom Color Preview
                 Box(
                     modifier = Modifier
-                        .size(100.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(selectedColor)
-                        .border(1.dp, Color.Black, RoundedCornerShape(8.dp))
-                )
-                Spacer(modifier = Modifier.height(16.dp))
+                        .border(2.dp, Color.Black, RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val luminance = 0.299 * selectedColor.red + 0.587 * selectedColor.green + 0.114 * selectedColor.blue
+                    Text(
+                        "Preview",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (luminance > 0.5) Color.Black else Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 3. The Color Wheel
                 ColorWheel(
-                    modifier = Modifier.size(200.dp),
+                    modifier = Modifier.size(220.dp),
+                    initialColor = selectedColor,
                     onColorChange = { selectedColor = it }
                 )
+
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // 4. History Palette
+                Text(
+                    "Recent Colors",
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    // Show 5 boxes, fill with recent colors or empty state
+                    for (i in 0 until 5) {
+                        val color = recentColors.getOrNull(i)
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 12.dp)
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .then(if (color != null) Modifier.background(color) else Modifier.background(Color.Transparent))
+                                .border(1.dp, if (color != null) Color.LightGray else Color.Gray.copy(alpha = 0.3f), CircleShape)
+                                .then(if (color != null) Modifier.clickable { selectedColor = color } else Modifier)
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -677,13 +764,40 @@ fun ColorPickerDialog(
 @Composable
 fun ColorWheel(
     modifier: Modifier = Modifier,
+    initialColor: Color,
     onColorChange: (Color) -> Unit
 ) {
     BoxWithConstraints(modifier = modifier.aspectRatio(1f)) {
         val radius = constraints.maxWidth / 2f
         val center = Offset(radius, radius)
 
-        var hsv by remember { mutableStateOf(floatArrayOf(0f, 1f, 1f)) }
+        // Helper to convert Color to HSV
+        fun colorToHsv(color: Color): FloatArray {
+            val r = color.red
+            val g = color.green
+            val b = color.blue
+            val max = max(r, max(g, b))
+            val min = min(r, min(g, b))
+            val delta = max - min
+            
+            var h = 0f
+            if (delta != 0f) {
+                h = when (max) {
+                    r -> (g - b) / delta + (if (g < b) 6 else 0)
+                    g -> (b - r) / delta + 2
+                    else -> (r - g) / delta + 4
+                }
+                h /= 6f
+            }
+            
+            val s = if (max == 0f) 0f else delta / max
+            val v = max
+            
+            return floatArrayOf(h * 360f, s, v)
+        }
+
+        // Initialize HSV from initialColor
+        var hsv by remember(initialColor) { mutableStateOf(colorToHsv(initialColor)) }
 
         val thumbOffset = remember(hsv, radius) {
             val angle = (hsv[0] * PI.toFloat() / 180f)
@@ -702,7 +816,7 @@ fun ColorWheel(
                         val touch = change.position
                         val dx = touch.x - center.x
                         val dy = touch.y - center.y
-                        val dist = min(sqrt(dx * dx + dy * dy), radius)
+                        val dist = min(sqrt((dx * dx + dy * dy).toDouble()), radius.toDouble()).toFloat()
                         
                         var angle = atan2(dy, dx) * 180f / PI.toFloat()
                         if (angle < 0) angle += 360f
@@ -710,6 +824,24 @@ fun ColorWheel(
                         val saturation = dist / radius
                         hsv = floatArrayOf(angle, saturation, 1f)
                         onColorChange(Color.hsv(hsv[0], hsv[1], hsv[2]))
+                    }
+                }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitFirstDown()
+                            val touch = event.position
+                            val dx = touch.x - center.x
+                            val dy = touch.y - center.y
+                            val dist = min(sqrt((dx * dx + dy * dy).toDouble()), radius.toDouble()).toFloat()
+                            
+                            var angle = atan2(dy, dx) * 180f / PI.toFloat()
+                            if (angle < 0) angle += 360f
+                            
+                            val saturation = dist / radius
+                            hsv = floatArrayOf(angle, saturation, 1f)
+                            onColorChange(Color.hsv(hsv[0], hsv[1], hsv[2]))
+                        }
                     }
                 }
         ) {
