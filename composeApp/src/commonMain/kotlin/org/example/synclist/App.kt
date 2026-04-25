@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,11 +41,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -71,7 +75,7 @@ fun App() {
         var isEditingTitle by remember { mutableStateOf(false) }
         var appBarColor by remember { mutableStateOf<Color?>(null) }
         var showColorPicker by remember { mutableStateOf(false) }
-        val recentColors = remember { mutableStateListOf<Color>() }
+        val savedCustomColors = remember { mutableStateListOf<Color?>(null, null, null, null, null, null, null) }
         
         var isMenuExpanded by remember { mutableStateOf(false) }
         var isSearchMode by remember { mutableStateOf(false) }
@@ -162,18 +166,10 @@ fun App() {
         if (showColorPicker) {
             ColorPickerDialog(
                 initialColor = appBarColor ?: Color(0xFF6750A4),
-                recentColors = recentColors,
+                savedCustomColors = savedCustomColors,
                 onDismiss = { showColorPicker = false },
                 onColorSelected = { 
                     appBarColor = it
-                    // Update history
-                    if (!recentColors.contains(it)) {
-                        recentColors.add(0, it)
-                        if (recentColors.size > 5) recentColors.removeAt(5)
-                    } else {
-                        recentColors.remove(it)
-                        recentColors.add(0, it)
-                    }
                     showColorPicker = false
                 }
             )
@@ -649,7 +645,7 @@ fun AddItemTile(onClick: () -> Unit) {
 @Composable
 fun ColorPickerDialog(
     initialColor: Color,
-    recentColors: List<Color>,
+    savedCustomColors: MutableList<Color?>,
     onDismiss: () -> Unit,
     onColorSelected: (Color) -> Unit
 ) {
@@ -721,31 +717,67 @@ fun ColorPickerDialog(
 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                // 4. History Palette
+                // 4. Saved Palette
                 Text(
-                    "Recent Colors",
+                    "Saved custom colors",
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.align(Alignment.Start)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Show 5 boxes, fill with recent colors or empty state
-                    for (i in 0 until 5) {
-                        val color = recentColors.getOrNull(i)
+                    for (i in 0 until 7) {
+                        val color = savedCustomColors.getOrNull(i)
                         Box(
                             modifier = Modifier
-                                .padding(end = 12.dp)
-                                .size(40.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
-                                .then(if (color != null) Modifier.background(color) else Modifier.background(Color.Transparent))
+                                .background(color ?: Color.Transparent)
                                 .border(1.dp, if (color != null) Color.LightGray else Color.Gray.copy(alpha = 0.3f), CircleShape)
-                                .then(if (color != null) Modifier.clickable { selectedColor = color } else Modifier)
+                                .pointerInput(i) {
+                                    detectDragGestures(
+                                        onDragStart = { /* No-op to enable other gestures if needed */ },
+                                        onDragEnd = { /* No-op */ },
+                                        onDragCancel = { /* No-op */ },
+                                        onDrag = { _, _ -> /* No-op */ }
+                                    )
+                                }
+                                .pointerInput(i) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            awaitFirstDown()
+                                            
+                                            // Wait for up or timeout for long press
+                                            val upEvent = withTimeoutOrNull<PointerInputChange?>(500) {
+                                                waitForUpOrCancellation()
+                                            }
+                                            
+                                            if (upEvent == null) {
+                                                // Timeout reached, it's a long press
+                                                savedCustomColors[i] = null
+                                            } else {
+                                                // Up event received before timeout
+                                                if (color != null) {
+                                                    selectedColor = color
+                                                } else {
+                                                    savedCustomColors[i] = selectedColor
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                         )
                     }
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Long press to delete",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
             }
         },
         confirmButton = {
