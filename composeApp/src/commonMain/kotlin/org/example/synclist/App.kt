@@ -961,14 +961,18 @@ fun ColorPickerDialog(
                 ) {
                     for (i in 0 until 7) {
                         val color = savedCustomColors.getOrNull(i)
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f) // Equal distribution to ensure perfect circles
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size(38.dp)
+                                    .aspectRatio(1f)
                                     .clip(CircleShape)
                                     .background(color ?: Color.Transparent)
                                     .border(
-                                        width = if (color != null) 1.dp else 1.dp,
+                                        width = 1.dp,
                                         color = if (color != null) Color.LightGray else Color.Gray.copy(alpha = 0.3f),
                                         shape = CircleShape
                                     )
