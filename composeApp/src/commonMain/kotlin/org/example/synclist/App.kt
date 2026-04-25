@@ -74,7 +74,9 @@ fun App() {
         var listTitle by remember { mutableStateOf("SyncList") }
         var isEditingTitle by remember { mutableStateOf(false) }
         var appBarColor by remember { mutableStateOf<Color?>(null) }
+        var listBackgroundColor by remember { mutableStateOf<Color?>(null) }
         var showColorPicker by remember { mutableStateOf(false) }
+        var colorTarget by remember { mutableStateOf("Top Bar") } // "Top Bar" or "List Background"
         val savedCustomColors = remember { mutableStateListOf<Color?>(null, null, null, null, null, null, null) }
         
         var isMenuExpanded by remember { mutableStateOf(false) }
@@ -89,7 +91,13 @@ fun App() {
         val canRedo = globalCanRedo
 
         val contentColor = remember(appBarColor) {
-            val baseColor = appBarColor ?: Color(0xFF6750A4) // Material3 default primary
+            val baseColor = appBarColor ?: Color(0xFF6750A4)
+            val luminance = 0.299 * baseColor.red + 0.587 * baseColor.green + 0.114 * baseColor.blue
+            if (luminance > 0.5) Color.Black else Color.White
+        }
+
+        val listItemContentColor = remember(listBackgroundColor) {
+            val baseColor = listBackgroundColor ?: Color.White
             val luminance = 0.299 * baseColor.red + 0.587 * baseColor.green + 0.114 * baseColor.blue
             if (luminance > 0.5) Color.Black else Color.White
         }
@@ -165,11 +173,12 @@ fun App() {
 
         if (showColorPicker) {
             ColorPickerDialog(
-                initialColor = appBarColor ?: Color(0xFF6750A4),
+                title = "Pick $colorTarget Color",
+                initialColor = if (colorTarget == "Top Bar") (appBarColor ?: Color(0xFF6750A4)) else (listBackgroundColor ?: Color.White),
                 savedCustomColors = savedCustomColors,
                 onDismiss = { showColorPicker = false },
                 onColorSelected = { 
-                    appBarColor = it
+                    if (colorTarget == "Top Bar") appBarColor = it else listBackgroundColor = it
                     showColorPicker = false
                 }
             )
@@ -177,59 +186,58 @@ fun App() {
 
         Scaffold(
             topBar = {
-                CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = appBarColor ?: MaterialTheme.colorScheme.primary,
                         titleContentColor = contentColor,
                         navigationIconContentColor = contentColor,
                         actionIconContentColor = contentColor
                     ),
                     title = {
-                        if (isSearchMode) {
-                            TextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                placeholder = { Text("Search items...", color = contentColor.copy(alpha = 0.7f)) },
-                                singleLine = true,
-                                textStyle = LocalTextStyle.current.copy(
-                                    textAlign = TextAlign.Center,
-                                    fontWeight = FontWeight.Bold,
-                                    color = contentColor
-                                ),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    cursorColor = contentColor
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else if (isEditingTitle) {
-                            TextField(
-                                value = listTitle,
-                                onValueChange = { listTitle = it },
-                                singleLine = true,
-                                textStyle = LocalTextStyle.current.copy(
-                                    textAlign = TextAlign.Center,
-                                    fontWeight = FontWeight.Bold,
-                                    color = contentColor
-                                ),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    cursorColor = contentColor
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
-                            Text(
-                                text = listTitle,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center
-                            )
+                        Box(modifier = Modifier.fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+                            if (isSearchMode) {
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    placeholder = { Text("Search...", color = contentColor.copy(alpha = 0.7f)) },
+                                    singleLine = true,
+                                    textStyle = LocalTextStyle.current.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = contentColor
+                                    ),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        cursorColor = contentColor
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            } else if (isEditingTitle) {
+                                TextField(
+                                    value = listTitle,
+                                    onValueChange = { listTitle = it },
+                                    singleLine = true,
+                                    textStyle = LocalTextStyle.current.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = contentColor
+                                    ),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        cursorColor = contentColor
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            } else {
+                                Text(
+                                    text = listTitle,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     },
                     navigationIcon = {
@@ -241,25 +249,15 @@ fun App() {
                                 Icon(
                                     Icons.Default.Close, 
                                     contentDescription = "Close Search",
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
-                        } else if (isEditingTitle) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(start = 12.dp)
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(appBarColor ?: MaterialTheme.colorScheme.primary)
-                                    .border(2.dp, contentColor, RoundedCornerShape(4.dp))
-                                    .clickable { showColorPicker = true }
-                            )
                         } else {
                             IconButton(onClick = { /* Handle navigation back */ }) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack, 
                                     contentDescription = "Back",
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
                         }
@@ -273,9 +271,10 @@ fun App() {
                                 Icon(
                                     Icons.AutoMirrored.Filled.Undo, 
                                     contentDescription = "Undo",
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
                             IconButton(
                                 onClick = { undoRedoManager.redo() },
                                 enabled = canRedo
@@ -283,9 +282,10 @@ fun App() {
                                 Icon(
                                     Icons.AutoMirrored.Filled.Redo, 
                                     contentDescription = "Redo",
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
                             IconButton(onClick = { 
                                 if (isEditingTitle) {
                                     if (listTitle != previousTitle) {
@@ -300,15 +300,16 @@ fun App() {
                                 Icon(
                                     if (isEditingTitle) Icons.Default.Check else Icons.Default.Edit,
                                     contentDescription = if (isEditingTitle) "Done" else "Edit",
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
                             Box {
                                 IconButton(onClick = { isMenuExpanded = true }) {
                                     Icon(
                                         Icons.Default.Menu, 
                                         contentDescription = "Menu",
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(32.dp)
                                     )
                                 }
                                 DropdownMenu(
@@ -330,6 +331,41 @@ fun App() {
                                             isMenuExpanded = false
                                         }
                                     )
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Top Bar Color") },
+                                        leadingIcon = { 
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clip(CircleShape)
+                                                    .background(appBarColor ?: MaterialTheme.colorScheme.primary)
+                                                    .border(1.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                            )
+                                        },
+                                        onClick = {
+                                            colorTarget = "Top Bar"
+                                            showColorPicker = true
+                                            isMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("List Background") },
+                                        leadingIcon = { 
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clip(CircleShape)
+                                                    .background(listBackgroundColor ?: Color.White)
+                                                    .border(1.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                            )
+                                        },
+                                        onClick = {
+                                            colorTarget = "List Background"
+                                            showColorPicker = true
+                                            isMenuExpanded = false
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -337,7 +373,12 @@ fun App() {
                 )
             }
         ) { padding ->
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(listBackgroundColor ?: MaterialTheme.colorScheme.surface)
+            ) {
                 // Metadata Header
                 if (showMetadata) {
                     Column(
@@ -348,18 +389,18 @@ fun App() {
                         Text(
                             text = "Date created: ${formatTimestamp(createdTimestamp)}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = listItemContentColor.copy(alpha = 0.6f)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Last modified: ${formatTimestamp(lastModifiedTimestamp)}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = listItemContentColor.copy(alpha = 0.6f)
                         )
                     }
                     HorizontalDivider(
                         thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        color = listItemContentColor.copy(alpha = 0.2f)
                     )
                 }
 
@@ -410,6 +451,7 @@ fun App() {
                         val isDragging = draggingItemId == item.id
                         ListItemRow(
                             item = item,
+                            contentColor = listItemContentColor,
                             onToggle = { 
                                 undoRedoManager.add(ToggleAction(item.id, item.isChecked, !item.isChecked, viewModel))
                                 viewModel.toggleItem(item)
@@ -494,13 +536,19 @@ fun formatTimestamp(timestamp: Long): String {
 @Composable
 fun ListItemRow(
     item: ListItem,
+    contentColor: Color,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     isEditMode: Boolean,
     modifier: Modifier = Modifier,
     handleModifier: Modifier = Modifier
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent
+        )
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -516,14 +564,22 @@ fun ListItemRow(
                 Checkbox(
                     checked = item.isChecked,
                     onCheckedChange = { onToggle() },
-                    modifier = Modifier.scale(1.5f)
+                    modifier = Modifier.scale(1.5f),
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = contentColor,
+                        uncheckedColor = contentColor.copy(alpha = 0.6f),
+                        checkmarkColor = if (contentColor == Color.White) Color.Black else Color.White
+                    )
                 )
                 Text(
                     text = item.text,
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 12.dp),
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = contentColor,
+                        fontWeight = FontWeight.Medium
+                    )
                 )
             }
 
@@ -541,13 +597,13 @@ fun ListItemRow(
                             imageVector = Icons.Default.KeyboardArrowUp,
                             contentDescription = null,
                             modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = contentColor.copy(alpha = 0.7f)
                         )
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
                             contentDescription = null,
                             modifier = Modifier.size(24.dp).offset(y = (-12).dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = contentColor.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -644,6 +700,7 @@ fun AddItemTile(onClick: () -> Unit) {
 
 @Composable
 fun ColorPickerDialog(
+    title: String,
     initialColor: Color,
     savedCustomColors: MutableList<Color?>,
     onDismiss: () -> Unit,
@@ -663,7 +720,7 @@ fun ColorPickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Color Studio", fontWeight = FontWeight.Bold) },
+        title = { Text(title, fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
