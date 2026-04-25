@@ -757,12 +757,29 @@ fun ColorPickerDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 var showDeleteConfirm by remember { mutableStateOf<Int?>(null) }
+                var showOverwriteConfirm by remember { mutableStateOf<Int?>(null) }
                 
                 if (showDeleteConfirm != null) {
+                    val colorToDelete = savedCustomColors[showDeleteConfirm!!]
                     AlertDialog(
                         onDismissRequest = { showDeleteConfirm = null },
                         title = { Text("Confirm Deletion") },
-                        text = { Text("Delete this saved color?") },
+                        text = { 
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Delete this saved color?")
+                                Spacer(modifier = Modifier.height(20.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(CircleShape)
+                                        .background(colorToDelete ?: Color.Transparent)
+                                        .border(2.dp, Color.Black.copy(alpha = 0.2f), CircleShape)
+                                )
+                            }
+                        },
                         confirmButton = {
                             TextButton(onClick = {
                                 savedCustomColors[showDeleteConfirm!!] = null
@@ -771,6 +788,63 @@ fun ColorPickerDialog(
                         },
                         dismissButton = {
                             TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
+                        }
+                    )
+                }
+
+                if (showOverwriteConfirm != null) {
+                    val existingColor = savedCustomColors[showOverwriteConfirm!!]
+                    AlertDialog(
+                        onDismissRequest = { showOverwriteConfirm = null },
+                        title = { Text("Overwrite Color?") },
+                        text = {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("This slot is already full. Would you like to overwrite it or use the saved color?")
+                                Spacer(modifier = Modifier.height(20.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(CircleShape)
+                                                .background(existingColor ?: Color.Transparent)
+                                                .border(1.dp, Color.LightGray, CircleShape)
+                                        )
+                                        Text("Saved", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    Spacer(modifier = Modifier.width(24.dp))
+                                    Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = null, tint = Color.Gray)
+                                    Spacer(modifier = Modifier.width(24.dp))
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(CircleShape)
+                                                .background(selectedColor)
+                                                .border(1.dp, Color.LightGray, CircleShape)
+                                        )
+                                        Text("New", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                savedCustomColors[showOverwriteConfirm!!] = selectedColor
+                                showOverwriteConfirm = null
+                            }) { Text("Overwrite") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                selectedColor = existingColor ?: selectedColor
+                                showOverwriteConfirm = null
+                            }) { Text("Use Saved") }
                         }
                     )
                 }
@@ -784,42 +858,36 @@ fun ColorPickerDialog(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(38.dp)
                                     .clip(CircleShape)
                                     .background(color ?: Color.Transparent)
-                                    .border(1.dp, if (color != null) Color.LightGray else Color.Gray.copy(alpha = 0.3f), CircleShape)
-                                    .pointerInput(i) {
-                                        awaitPointerEventScope {
-                                            while (true) {
-                                                awaitFirstDown()
-                                                val upEvent = withTimeoutOrNull<PointerInputChange?>(500) {
-                                                    waitForUpOrCancellation()
-                                                }
-                                                if (upEvent != null) {
-                                                    if (color != null) {
-                                                        selectedColor = color
-                                                    } else {
-                                                        savedCustomColors[i] = selectedColor
-                                                    }
-                                                }
-                                            }
+                                    .border(
+                                        width = if (color != null) 1.dp else 1.dp,
+                                        color = if (color != null) Color.LightGray else Color.Gray.copy(alpha = 0.3f),
+                                        shape = CircleShape
+                                    )
+                                    .clickable {
+                                        if (color == null) {
+                                            savedCustomColors[i] = selectedColor
+                                        } else if (color != selectedColor) {
+                                            showOverwriteConfirm = i
                                         }
                                     }
                             )
                             if (color != null) {
                                 IconButton(
                                     onClick = { showDeleteConfirm = i },
-                                    modifier = Modifier.size(24.dp).padding(top = 4.dp)
+                                    modifier = Modifier.size(40.dp).padding(top = 4.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.Delete,
                                         contentDescription = "Delete",
-                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(16.dp)
+                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(24.dp)
                                     )
                                 }
                             } else {
-                                Spacer(modifier = Modifier.size(24.dp))
+                                Spacer(modifier = Modifier.size(40.dp))
                             }
                         }
                     }
