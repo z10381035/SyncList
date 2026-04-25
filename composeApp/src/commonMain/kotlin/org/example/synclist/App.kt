@@ -5,8 +5,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.*
@@ -1043,35 +1045,26 @@ fun ColorWheel(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
-                    detectDragGestures { change, _ ->
-                        val touch = change.position
-                        val dx = touch.x - center.x
-                        val dy = touch.y - center.y
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        val dx = down.position.x - center.x
+                        val dy = down.position.y - center.y
                         val dist = min(sqrt((dx * dx + dy * dy).toDouble()), radius.toDouble()).toFloat()
-                        
                         var angle = atan2(dy, dx) * 180f / PI.toFloat()
                         if (angle < 0) angle += 360f
-                        
                         val saturation = dist / radius
-                        hsv = floatArrayOf(angle, saturation, hsv[2]) // Preserve V
-                        onColorChange(Color.hsv(hsv[0], hsv[1], hsv[2]))
-                    }
-                }
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitFirstDown()
-                            val touch = event.position
-                            val dx = touch.x - center.x
-                            val dy = touch.y - center.y
-                            val dist = min(sqrt((dx * dx + dy * dy).toDouble()), radius.toDouble()).toFloat()
-                            
-                            var angle = atan2(dy, dx) * 180f / PI.toFloat()
-                            if (angle < 0) angle += 360f
-                            
-                            val saturation = dist / radius
-                            hsv = floatArrayOf(angle, saturation, hsv[2]) // Preserve V
-                            onColorChange(Color.hsv(hsv[0], hsv[1], hsv[2]))
+                        onColorChange(Color.hsv(angle, saturation, hsv[2]))
+                        
+                        drag(down.id) { change ->
+                            change.consume()
+                            val t = change.position
+                            val dxDrag = t.x - center.x
+                            val dyDrag = t.y - center.y
+                            val distDrag = min(sqrt((dxDrag * dxDrag + dyDrag * dyDrag).toDouble()), radius.toDouble()).toFloat()
+                            var angleDrag = atan2(dyDrag, dxDrag) * 180f / PI.toFloat()
+                            if (angleDrag < 0) angleDrag += 360f
+                            val saturationDrag = distDrag / radius
+                            onColorChange(Color.hsv(angleDrag, saturationDrag, hsv[2]))
                         }
                     }
                 }
@@ -1143,20 +1136,18 @@ fun BrightnessSlider(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(hsv[0], hsv[1]) {
-                    detectDragGestures { change, _ ->
-                        val y = change.position.y.coerceIn(0f, height)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        val y = down.position.y.coerceIn(0f, height)
                         val brightness = 1f - (y / height)
                         onColorChange(Color.hsv(hsv[0], hsv[1], brightness))
-                    }
-                }
-                .pointerInput(hsv[0], hsv[1]) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitFirstDown()
-                            val y = event.position.y.coerceIn(0f, height)
-                            val brightness = 1f - (y / height)
-                            onColorChange(Color.hsv(hsv[0], hsv[1], brightness))
+                        
+                        drag(down.id) { change ->
+                            change.consume()
+                            val yDrag = change.position.y.coerceIn(0f, height)
+                            val brightnessDrag = 1f - (yDrag / height)
+                            onColorChange(Color.hsv(hsv[0], hsv[1], brightnessDrag))
                         }
                     }
                 }
