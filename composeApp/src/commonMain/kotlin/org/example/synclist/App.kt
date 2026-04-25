@@ -39,7 +39,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -78,6 +80,12 @@ fun App() {
         
         val canUndo = globalCanUndo
         val canRedo = globalCanRedo
+
+        val contentColor = remember(appBarColor) {
+            val baseColor = appBarColor ?: Color(0xFF6750A4) // Material3 default primary
+            val luminance = 0.299 * baseColor.red + 0.587 * baseColor.green + 0.114 * baseColor.blue
+            if (luminance > 0.5) Color.Black else Color.White
+        }
 
         var createdTimestamp by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
         var lastModifiedTimestamp by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
@@ -163,32 +171,57 @@ fun App() {
             topBar = {
                 CenterAlignedTopAppBar(
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = appBarColor ?: MaterialTheme.colorScheme.primary
+                        containerColor = appBarColor ?: MaterialTheme.colorScheme.primary,
+                        titleContentColor = contentColor,
+                        navigationIconContentColor = contentColor,
+                        actionIconContentColor = contentColor
                     ),
                     title = {
                         if (isSearchMode) {
                             TextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
-                                placeholder = { Text("Search items...") },
+                                placeholder = { Text("Search items...", color = contentColor.copy(alpha = 0.7f)) },
                                 singleLine = true,
+                                textStyle = LocalTextStyle.current.copy(
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Bold,
+                                    color = contentColor
+                                ),
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent
-                                )
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    cursorColor = contentColor
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             )
                         } else if (isEditingTitle) {
                             TextField(
                                 value = listTitle,
                                 onValueChange = { listTitle = it },
                                 singleLine = true,
+                                textStyle = LocalTextStyle.current.copy(
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Bold,
+                                    color = contentColor
+                                ),
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent
-                                )
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    cursorColor = contentColor
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             )
                         } else {
-                            Text(listTitle)
+                            Text(
+                                text = listTitle,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     },
                     navigationIcon = {
@@ -197,7 +230,11 @@ fun App() {
                                 isSearchMode = false 
                                 searchQuery = ""
                             }) {
-                                Icon(Icons.Default.Close, contentDescription = "Close Search")
+                                Icon(
+                                    Icons.Default.Close, 
+                                    contentDescription = "Close Search",
+                                    modifier = Modifier.size(28.dp)
+                                )
                             }
                         } else if (isEditingTitle) {
                             Box(
@@ -206,12 +243,16 @@ fun App() {
                                     .size(32.dp)
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(appBarColor ?: MaterialTheme.colorScheme.primary)
-                                    .border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(4.dp))
+                                    .border(2.dp, contentColor, RoundedCornerShape(4.dp))
                                     .clickable { showColorPicker = true }
                             )
                         } else {
                             IconButton(onClick = { /* Handle navigation back */ }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack, 
+                                    contentDescription = "Back",
+                                    modifier = Modifier.size(28.dp)
+                                )
                             }
                         }
                     },
@@ -221,13 +262,21 @@ fun App() {
                                 onClick = { undoRedoManager.undo() },
                                 enabled = canUndo
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Undo, 
+                                    contentDescription = "Undo",
+                                    modifier = Modifier.size(28.dp)
+                                )
                             }
                             IconButton(
                                 onClick = { undoRedoManager.redo() },
                                 enabled = canRedo
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Redo, 
+                                    contentDescription = "Redo",
+                                    modifier = Modifier.size(28.dp)
+                                )
                             }
                             IconButton(onClick = { 
                                 if (isEditingTitle) {
@@ -242,12 +291,17 @@ fun App() {
                             }) {
                                 Icon(
                                     if (isEditingTitle) Icons.Default.Check else Icons.Default.Edit,
-                                    contentDescription = if (isEditingTitle) "Done" else "Edit"
+                                    contentDescription = if (isEditingTitle) "Done" else "Edit",
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
                             Box {
                                 IconButton(onClick = { isMenuExpanded = true }) {
-                                    Icon(Icons.Default.Menu, contentDescription = "Menu")
+                                    Icon(
+                                        Icons.Default.Menu, 
+                                        contentDescription = "Menu",
+                                        modifier = Modifier.size(28.dp)
+                                    )
                                 }
                                 DropdownMenu(
                                     expanded = isMenuExpanded,
