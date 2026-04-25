@@ -17,6 +17,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Redo
@@ -203,47 +205,53 @@ fun App() {
                         ),
                         title = {
                             if (isSearchMode) {
-                                TextField(
+                                BasicTextField(
                                     value = searchQuery,
                                     onValueChange = { searchQuery = it },
-                                    placeholder = { Text("Search...", color = contentColor.copy(alpha = 0.7f)) },
                                     singleLine = true,
                                     textStyle = LocalTextStyle.current.copy(
+                                        textAlign = TextAlign.Center,
                                         fontWeight = FontWeight.Bold,
                                         color = contentColor
                                     ),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color.Transparent,
-                                        unfocusedContainerColor = Color.Transparent,
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        cursorColor = contentColor
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
+                                    cursorBrush = Brush.verticalGradient(listOf(contentColor, contentColor)),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    decorationBox = { innerTextField ->
+                                        if (searchQuery.isEmpty()) {
+                                            Text(
+                                                "Search...", 
+                                                color = contentColor.copy(alpha = 0.7f),
+                                                textAlign = TextAlign.Center,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
                                 )
                             } else if (isEditingTitle) {
-                                TextField(
+                                BasicTextField(
                                     value = listTitle,
                                     onValueChange = { listTitle = it },
                                     singleLine = true,
                                     textStyle = LocalTextStyle.current.copy(
+                                        textAlign = TextAlign.Center,
                                         fontWeight = FontWeight.Bold,
                                         color = contentColor
                                     ),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color.Transparent,
-                                        unfocusedContainerColor = Color.Transparent,
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        cursorColor = contentColor
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
+                                    cursorBrush = Brush.verticalGradient(listOf(contentColor, contentColor)),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    decorationBox = { innerTextField ->
+                                        innerTextField()
+                                    }
                                 )
                             } else {
                                 Text(
                                     text = listTitle,
                                     fontWeight = FontWeight.Bold,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
                         },
