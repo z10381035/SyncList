@@ -98,6 +98,8 @@ fun App() {
         var checkmarkColor by remember { mutableStateOf<Color?>(null) }
         var showCheckmarkBox by remember { mutableStateOf(true) }
         var wavyWavelength by remember { mutableStateOf(20f) }
+        var wavyExtraHeight by remember { mutableStateOf(false) }
+        var scribbleIntensity by remember { mutableStateOf(0.5f) }
         val crossOutOptions = remember { mutableStateListOf<String>() }
 
         var showColorPicker by remember { mutableStateOf(false) }
@@ -230,6 +232,10 @@ fun App() {
                 onShowCheckmarkBoxChange = { showCheckmarkBox = it },
                 wavyWavelength = wavyWavelength,
                 onWavyWavelengthChange = { wavyWavelength = it },
+                wavyExtraHeight = wavyExtraHeight,
+                onWavyExtraHeightChange = { wavyExtraHeight = it },
+                scribbleIntensity = scribbleIntensity,
+                onScribbleIntensityChange = { scribbleIntensity = it },
                 crossOutOptions = crossOutOptions,
                 savedCustomColors = savedCustomColors,
                 onReset = {
@@ -241,6 +247,8 @@ fun App() {
                     checkmarkColor = null
                     showCheckmarkBox = true
                     wavyWavelength = 20f
+                    wavyExtraHeight = false
+                    scribbleIntensity = 0.5f
                     crossOutOptions.clear()
                 },
                 onBack = { currentScreen = Screen.List }
@@ -563,6 +571,8 @@ fun App() {
                             showCheckmarkBox = showCheckmarkBox,
                             crossOutOptions = crossOutOptions,
                             wavyWavelength = wavyWavelength,
+                            wavyExtraHeight = wavyExtraHeight,
+                            scribbleIntensity = scribbleIntensity,
                             onToggle = { 
                                 undoRedoManager.add(ToggleAction(item.id, item.isChecked, !item.isChecked, viewModel))
                                 viewModel.toggleItem(item)
@@ -653,6 +663,10 @@ fun SettingsPage(
     onShowCheckmarkBoxChange: (Boolean) -> Unit,
     wavyWavelength: Float,
     onWavyWavelengthChange: (Float) -> Unit,
+    wavyExtraHeight: Boolean,
+    onWavyExtraHeightChange: (Boolean) -> Unit,
+    scribbleIntensity: Float,
+    onScribbleIntensityChange: (Float) -> Unit,
     crossOutOptions: MutableList<String>,
     savedCustomColors: MutableList<Color?>,
     onReset: () -> Unit,
@@ -766,17 +780,13 @@ fun SettingsPage(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .graphicsLayer {
-                            scaleX = zoomLevel
-                            scaleY = zoomLevel
-                        }
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                         .padding(12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "This is what the font looks like.",
-                        fontSize = fontSize.sp,
+                        fontSize = (fontSize * zoomLevel).sp, // Zoom-aware scaling
                         fontFamily = when(fontStyle) {
                             "Serif" -> FontFamily.Serif
                             "Monospace" -> FontFamily.Monospace
@@ -872,14 +882,47 @@ fun SettingsPage(
             // 5. Cross-out Effects
             Column {
                 Text(text = "Cross-out Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
-                Text(text = "Wavy Wavelength", style = MaterialTheme.typography.labelSmall)
-                Slider(
-                    value = wavyWavelength,
-                    onValueChange = onWavyWavelengthChange,
-                    valueRange = 5f..100f
-                )
+                // Wavy Sub-options
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Text(text = "Wavy Settings", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = "Wavelength (Undulation frequency)", style = MaterialTheme.typography.bodySmall)
+                    Slider(
+                        value = wavyWavelength,
+                        onValueChange = onWavyWavelengthChange,
+                        valueRange = 5f..100f
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = wavyExtraHeight, onCheckedChange = onWavyExtraHeightChange)
+                        Text(text = "Extra Height (Cross out entire tile)", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                // Scribble Sub-options
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Text(text = "Scribble Settings", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = "Intensity (Scraping density)", style = MaterialTheme.typography.bodySmall)
+                    Slider(
+                        value = scribbleIntensity,
+                        onValueChange = onScribbleIntensityChange,
+                        valueRange = 0.1f..1.0f
+                    )
+                }
 
                 val crossStyles = listOf("Straight", "Wavy", "Scribble")
                 Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
@@ -898,13 +941,19 @@ fun SettingsPage(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(60.dp)
+                        .height(100.dp) // Taller preview for "Extra Height" mode
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "This is what the cross out option looks like.",
-                        modifier = Modifier.drawCrossOut(crossOutOptions, Color.Gray, wavyWavelength)
+                        modifier = Modifier.drawCrossOut(
+                            options = crossOutOptions,
+                            color = Color.Gray,
+                            wavelength = wavyWavelength,
+                            extraHeight = wavyExtraHeight,
+                            intensity = scribbleIntensity
+                        )
                     )
                 }
             }
@@ -919,7 +968,7 @@ fun SettingsPage(
                 Text("Reset to Default")
             }
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(64.dp)) // Extra space at bottom
         }
     }
 }
@@ -952,6 +1001,8 @@ fun ListItemRow(
     showCheckmarkBox: Boolean,
     crossOutOptions: List<String>,
     wavyWavelength: Float,
+    wavyExtraHeight: Boolean,
+    scribbleIntensity: Float,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     isEditMode: Boolean,
@@ -959,55 +1010,48 @@ fun ListItemRow(
     handleModifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = zoomLevel
-                scaleY = zoomLevel
-            },
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = Color.Transparent
         )
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = (8 * zoomLevel).dp), // Scale vertical padding
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Zone A: Action Zone
+            // Zone A: Action Zone (Anchored Left, Scaled size)
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .clickable { onToggle() }
-                    .padding(vertical = 16.dp, horizontal = 12.dp),
+                    .padding(vertical = 12.dp, horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                // Fixed-position checkmark area that grows/shrinks with zoom
+                Box(
+                    modifier = Modifier.size((32 * zoomLevel).dp), 
+                    contentAlignment = Alignment.Center
+                ) {
                     if (showCheckmarkBox && checkmarkStyle != "Fill") {
-                        Box(modifier = Modifier.fillMaxSize().border(1.5.dp, checkmarkColor.copy(alpha = 0.6f), RoundedCornerShape(4.dp)))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .border((1.5 * zoomLevel).dp, checkmarkColor.copy(alpha = 0.6f), RoundedCornerShape((4 * zoomLevel).dp))
+                        )
                     }
                     
+                    val iconSize = (24 * zoomLevel).dp
                     when (checkmarkStyle) {
-                        "X" -> {
-                            if (item.isChecked) Icon(Icons.Default.Close, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(24.dp))
-                        }
-                        "Star" -> {
-                            if (item.isChecked) Icon(Icons.Default.Star, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(24.dp))
-                        }
+                        "X" -> if (item.isChecked) Icon(Icons.Default.Close, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
+                        "Star" -> if (item.isChecked) Icon(Icons.Default.Star, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
                         "Circle" -> {
-                             if (item.isChecked) Box(modifier = Modifier.size(20.dp).background(checkmarkColor, CircleShape))
-                             else Box(modifier = Modifier.size(20.dp).border(1.5.dp, checkmarkColor.copy(alpha = 0.6f), CircleShape))
+                             if (item.isChecked) Box(modifier = Modifier.size((20 * zoomLevel).dp).background(checkmarkColor, CircleShape))
+                             else Box(modifier = Modifier.size((20 * zoomLevel).dp).border((1.5 * zoomLevel).dp, checkmarkColor.copy(alpha = 0.6f), CircleShape))
                         }
-                        "Fill" -> {
-                             Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .background(if (item.isChecked) checkmarkColor else contentColor.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-                                    .border(1.dp, checkmarkColor.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
-                             )
-                        }
-                        else -> {
-                            if (item.isChecked) Icon(Icons.Default.Check, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(24.dp))
-                        }
+                        "Fill" -> Box(modifier = Modifier.size((20 * zoomLevel).dp).background(if (item.isChecked) checkmarkColor else contentColor.copy(alpha = 0.1f), RoundedCornerShape((4 * zoomLevel).dp)).border(1.dp, checkmarkColor.copy(alpha = 0.3f), RoundedCornerShape((4 * zoomLevel).dp)))
+                        else -> if (item.isChecked) Icon(Icons.Default.Check, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
                     }
                 }
                 
@@ -1015,12 +1059,19 @@ fun ListItemRow(
                     text = item.text,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 12.dp)
-                        .drawCrossOut(if (item.isChecked) crossOutOptions else emptyList(), contentColor.copy(alpha = 0.4f), wavyWavelength),
+                        .padding(start = (12 * zoomLevel).dp)
+                        .graphicsLayer(clip = false) // Allow cross-out to reach past text bounds
+                        .drawCrossOut(
+                            options = if (item.isChecked) crossOutOptions else emptyList(), 
+                            color = checkmarkColor.copy(alpha = 0.5f), // Match checkmark color for harmony
+                            wavelength = wavyWavelength,
+                            extraHeight = wavyExtraHeight,
+                            intensity = scribbleIntensity
+                        ),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         color = contentColor,
                         fontWeight = FontWeight.Medium,
-                        fontSize = fontSize.sp,
+                        fontSize = (fontSize * zoomLevel).sp, // Dual scaling: Font * Zoom
                         fontFamily = when(fontStyle) {
                             "Serif" -> FontFamily.Serif
                             "Monospace" -> FontFamily.Monospace
@@ -1616,7 +1667,13 @@ fun BrightnessSlider(
     }
 }
 
-fun Modifier.drawCrossOut(options: List<String>, color: Color, wavelength: Float = 20f): Modifier = this.drawWithContent {
+fun Modifier.drawCrossOut(
+    options: List<String>, 
+    color: Color, 
+    wavelength: Float = 20f,
+    extraHeight: Boolean = false,
+    intensity: Float = 0.5f
+): Modifier = this.drawWithContent {
     drawContent()
     if (options.isEmpty()) return@drawWithContent
 
@@ -1637,9 +1694,9 @@ fun Modifier.drawCrossOut(options: List<String>, color: Color, wavelength: Float
         val path = Path()
         path.moveTo(0f, centerY)
         
-        // Dynamic wavelength and dramatic amplitude
         val waveWidth = wavelength
-        val amplitude = 12f // Taller hills and deeper valleys
+        // Dynamic amplitude: Extra Height mode extends past the text into the tile space
+        val amplitude = if (extraHeight) 40.dp.toPx() else 12f 
         
         val waveCount = (canvasWidth / waveWidth).toInt() + 1
         for (i in 0 until waveCount) {
@@ -1655,7 +1712,7 @@ fun Modifier.drawCrossOut(options: List<String>, color: Color, wavelength: Float
         drawPath(
             path = path,
             color = color,
-            style = Stroke(width = 2.5.dp.toPx())
+            style = Stroke(width = if (extraHeight) 3.5.dp.toPx() else 2.5.dp.toPx())
         )
     }
 
@@ -1663,21 +1720,26 @@ fun Modifier.drawCrossOut(options: List<String>, color: Color, wavelength: Float
         val path = Path()
         path.moveTo(0f, centerY)
         
-        // "Zippy" high-intensity needle motion
-        val steps = (canvasWidth / 2f).toInt() // Very high density
+        // Intensity controls spacing: smaller step = higher density
+        // 0.1 intensity -> 12px steps, 1.0 intensity -> 2px steps
+        val stepSize = 12f - (intensity * 10f) 
+        val steps = (canvasWidth / stepSize).toInt()
+        
         for (i in 0 until steps) {
-            val x = i * 2f
-            // Full height scribble (needle motion)
-            val yOffset = Random.nextFloat() * canvasHeight - centerY
+            val x = i * stepSize
+            // Full height scribble with frantic jitter
+            val scribbleHeight = if (extraHeight) 40.dp.toPx() else canvasHeight
+            val jitter = (Random.nextFloat() * scribbleHeight) - (scribbleHeight / 2f)
+            
             path.lineTo(
-                x + (Random.nextFloat() * 4f - 2f),
-                centerY + yOffset
+                x + (Random.nextFloat() * (stepSize * 1.5f) - (stepSize * 0.75f)),
+                centerY + jitter
             )
         }
         drawPath(
             path = path,
             color = color,
-            style = Stroke(width = 1.dp.toPx())
+            style = Stroke(width = 1.5.dp.toPx())
         )
     }
 }
