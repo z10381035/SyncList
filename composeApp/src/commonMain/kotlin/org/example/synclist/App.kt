@@ -784,15 +784,22 @@ fun SettingsPage(
                         .padding(12.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "This is what the font looks like.",
-                        fontSize = (fontSize * zoomLevel).sp, // Zoom-aware scaling
-                        fontFamily = when(fontStyle) {
-                            "Serif" -> FontFamily.Serif
-                            "Monospace" -> FontFamily.Monospace
-                            "Cursive" -> FontFamily.Cursive
-                            else -> FontFamily.Default
-                        }
+                    ListItemRow(
+                        item = ListItem("preview_font", "This is what the font looks like.", isChecked = false),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        fontSize = fontSize,
+                        zoomLevel = zoomLevel,
+                        fontStyle = fontStyle,
+                        checkmarkStyle = checkmarkStyle,
+                        checkmarkColor = checkmarkColor,
+                        showCheckmarkBox = showCheckmarkBox,
+                        crossOutOptions = emptyList(),
+                        wavyWavelength = wavyWavelength,
+                        wavyExtraHeight = wavyExtraHeight,
+                        scribbleIntensity = scribbleIntensity,
+                        onToggle = {},
+                        onDelete = {},
+                        isEditMode = false
                     )
                 }
             }
@@ -861,17 +868,21 @@ fun SettingsPage(
                     contentAlignment = Alignment.Center
                 ) {
                     // Checkmark Preview
-                    Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier.size((48 * zoomLevel).dp), 
+                        contentAlignment = Alignment.Center
+                    ) {
                         if (showCheckmarkBox && checkmarkStyle != "Fill") {
-                            Box(modifier = Modifier.fillMaxSize().border(2.dp, checkmarkColor.copy(alpha = 0.6f), RoundedCornerShape(4.dp)))
+                            Box(modifier = Modifier.fillMaxSize().border((2 * zoomLevel).dp, checkmarkColor.copy(alpha = 0.6f), RoundedCornerShape((4 * zoomLevel).dp)))
                         }
                         
+                        val iconSize = (32 * zoomLevel).dp
                         when (checkmarkStyle) {
-                            "X" -> Icon(Icons.Default.Close, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(32.dp))
-                            "Star" -> Icon(Icons.Default.Star, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(32.dp))
-                            "Circle" -> Box(modifier = Modifier.size(24.dp).border(2.dp, checkmarkColor, CircleShape).background(checkmarkColor, CircleShape))
-                            "Fill" -> Box(modifier = Modifier.size(24.dp).background(checkmarkColor, RoundedCornerShape(4.dp)))
-                            else -> Icon(Icons.Default.Check, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(32.dp))
+                            "X" -> Icon(Icons.Default.Close, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
+                            "Star" -> Icon(Icons.Default.Star, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
+                            "Circle" -> Box(modifier = Modifier.size((24 * zoomLevel).dp).border((2 * zoomLevel).dp, checkmarkColor, CircleShape).background(checkmarkColor, CircleShape))
+                            "Fill" -> Box(modifier = Modifier.size((24 * zoomLevel).dp).background(checkmarkColor, RoundedCornerShape((4 * zoomLevel).dp)))
+                            else -> Icon(Icons.Default.Check, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
                         }
                     }
                 }
@@ -898,7 +909,7 @@ fun SettingsPage(
                     Slider(
                         value = wavyWavelength,
                         onValueChange = onWavyWavelengthChange,
-                        valueRange = 5f..100f
+                        valueRange = 5f..300f // Expanded range for subdued/flat waves
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = wavyExtraHeight, onCheckedChange = onWavyExtraHeightChange)
@@ -941,19 +952,26 @@ fun SettingsPage(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(100.dp) // Taller preview for "Extra Height" mode
+                        .height(120.dp) // Taller preview for "Extra Height" mode
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "This is what the cross out option looks like.",
-                        modifier = Modifier.drawCrossOut(
-                            options = crossOutOptions,
-                            color = Color.Gray,
-                            wavelength = wavyWavelength,
-                            extraHeight = wavyExtraHeight,
-                            intensity = scribbleIntensity
-                        )
+                    ListItemRow(
+                        item = ListItem("preview_crossout", "This is what the cross out option looks like.", isChecked = true),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        fontSize = fontSize,
+                        zoomLevel = zoomLevel,
+                        fontStyle = fontStyle,
+                        checkmarkStyle = checkmarkStyle,
+                        checkmarkColor = checkmarkColor,
+                        showCheckmarkBox = showCheckmarkBox,
+                        crossOutOptions = crossOutOptions,
+                        wavyWavelength = wavyWavelength,
+                        wavyExtraHeight = wavyExtraHeight,
+                        scribbleIntensity = scribbleIntensity,
+                        onToggle = {},
+                        onDelete = {},
+                        isEditMode = false
                     )
                 }
             }
