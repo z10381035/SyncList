@@ -10,7 +10,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -105,6 +104,7 @@ fun App() {
         var wavyWavelength by remember { mutableStateOf(20f) }
         var wavyExtraHeight by remember { mutableStateOf(false) }
         var scribbleIntensity by remember { mutableStateOf(0.5f) }
+        var crossOutOpacity by remember { mutableStateOf(0.5f) }
         val crossOutOptions = remember { mutableStateListOf<String>() }
 
         var showColorPicker by remember { mutableStateOf(false) }
@@ -252,6 +252,8 @@ fun App() {
                 onWavyExtraHeightChange = { wavyExtraHeight = it },
                 scribbleIntensity = scribbleIntensity,
                 onScribbleIntensityChange = { scribbleIntensity = it },
+                crossOutOpacity = crossOutOpacity,
+                onCrossOutOpacityChange = { crossOutOpacity = it },
                 crossOutOptions = crossOutOptions,
                 savedCustomColors = savedCustomColors,
                 onReset = {
@@ -269,6 +271,7 @@ fun App() {
                     wavyWavelength = 20f
                     wavyExtraHeight = false
                     scribbleIntensity = 0.5f
+                    crossOutOpacity = 0.5f
                     crossOutOptions.clear()
                 },
                 onBack = { currentScreen = Screen.List }
@@ -283,7 +286,7 @@ fun App() {
                 ) {
                     // Tier 1: Title & Navigation
                     CenterAlignedTopAppBar(
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = Color.Transparent,
                             titleContentColor = contentColor,
                             navigationIconContentColor = contentColor,
@@ -537,12 +540,13 @@ fun App() {
 
                 if (showAddDialog) {
                     AddItemDialog(
-                        onAdd = { text ->
+                        onAdd = { text, isSpreader ->
                             scope.launch {
                                 val pos = viewModel.getNextPosition(addAtTop)
                                 val newItem = ListItem(
                                     id = (Clock.System.now().toEpochMilliseconds() + (0..1000).random()).toString(),
                                     text = text,
+                                    isSpreader = isSpreader,
                                     timestamp = Clock.System.now().toEpochMilliseconds(),
                                     position = pos
                                 )
@@ -594,6 +598,7 @@ fun App() {
                             wavyWavelength = wavyWavelength,
                             wavyExtraHeight = wavyExtraHeight,
                             scribbleIntensity = scribbleIntensity,
+                            crossOutOpacity = crossOutOpacity,
                             onToggle = { 
                                 undoRedoManager.add(ToggleAction(item.id, item.isChecked, !item.isChecked, viewModel))
                                 viewModel.toggleItem(item)
@@ -696,6 +701,8 @@ fun SettingsPage(
     onWavyExtraHeightChange: (Boolean) -> Unit,
     scribbleIntensity: Float,
     onScribbleIntensityChange: (Float) -> Unit,
+    crossOutOpacity: Float,
+    onCrossOutOpacityChange: (Float) -> Unit,
     crossOutOptions: MutableList<String>,
     savedCustomColors: MutableList<Color?>,
     onReset: () -> Unit,
@@ -738,7 +745,7 @@ fun SettingsPage(
                     .statusBarsPadding()
             ) {
                 CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
                         titleContentColor = contentColor,
                         navigationIconContentColor = contentColor
@@ -769,7 +776,7 @@ fun SettingsPage(
         }
     ) { padding ->
         val previewBgColor = remember(checkmarkColor, contentColor) {
-            val base = checkmarkColor ?: contentColor
+            val base = checkmarkColor
             val luminance = 0.299 * base.red + 0.587 * base.green + 0.114 * base.blue
             if (luminance > 0.8) Color.Black.copy(alpha = 0.05f) else Color.Transparent
         }
@@ -890,6 +897,7 @@ fun SettingsPage(
                         showCheckmarkBox = showCheckmarkBox,
                         crossOutOptions = emptyList(),
                         crossOutColor = if (isCrossOutHighContrast) settingsPageContentColor else crossOutColor,
+                        crossOutOpacity = crossOutOpacity,
                         wavyWavelength = wavyWavelength,
                         wavyExtraHeight = wavyExtraHeight,
                         scribbleIntensity = scribbleIntensity,
@@ -1098,6 +1106,19 @@ fun SettingsPage(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                Text(text = "Cross-out Opacity", style = MaterialTheme.typography.labelSmall, color = settingsPageContentColor)
+                Slider(
+                    value = crossOutOpacity,
+                    onValueChange = onCrossOutOpacityChange,
+                    valueRange = 0.05f..1.0f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = settingsPageContentColor,
+                        activeTrackColor = settingsPageContentColor
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 // Wavy Sub-options
                 Column(
@@ -1189,6 +1210,7 @@ fun SettingsPage(
                         showCheckmarkBox = showCheckmarkBox,
                         crossOutOptions = crossOutOptions,
                         crossOutColor = if (isCrossOutHighContrast) settingsPageContentColor else crossOutColor,
+                        crossOutOpacity = crossOutOpacity,
                         wavyWavelength = wavyWavelength,
                         wavyExtraHeight = wavyExtraHeight,
                         scribbleIntensity = scribbleIntensity,
@@ -1242,6 +1264,7 @@ fun ListItemRow(
     showCheckmarkBox: Boolean,
     crossOutOptions: List<String>,
     crossOutColor: Color,
+    crossOutOpacity: Float,
     wavyWavelength: Float,
     wavyExtraHeight: Boolean,
     scribbleIntensity: Float,
@@ -1259,115 +1282,141 @@ fun ListItemRow(
             containerColor = Color.Transparent
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = (8 * zoomLevel).dp), // Scale vertical padding
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Zone A: Action Zone (Anchored Left, Scaled size)
+        if (item.isSpreader) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = (8 * zoomLevel).dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HorizontalDivider(
+                        modifier = Modifier.weight(1f),
+                        thickness = (2 * zoomLevel).dp,
+                        color = contentColor.copy(alpha = 0.3f)
+                    )
+                    if (isEditMode) {
+                        IconButton(onClick = onDelete, modifier = Modifier.padding(horizontal = 8.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete Spreader", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        } else {
             Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .clickable { onToggle() }
-                    .padding(vertical = 12.dp, horizontal = 12.dp),
+                    .fillMaxWidth()
+                    .padding(vertical = (8 * zoomLevel).dp), // Scale vertical padding
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Fixed-position checkmark area that grows/shrinks with zoom
-                Box(
-                    modifier = Modifier.size((32 * zoomLevel).dp), 
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (showCheckmarkBox && checkmarkStyle != "Fill") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .border((1.5 * zoomLevel).dp, checkmarkColor.copy(alpha = 0.6f), RoundedCornerShape((4 * zoomLevel).dp))
-                        )
-                    }
-                    
-                    val iconSize = (24 * zoomLevel).dp
-                    when (checkmarkStyle) {
-                        "X" -> if (item.isChecked) Icon(Icons.Default.Close, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
-                        "Star" -> if (item.isChecked) Icon(Icons.Default.Star, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
-                        "Circle" -> {
-                             if (item.isChecked) Box(modifier = Modifier.size((20 * zoomLevel).dp).background(checkmarkColor, CircleShape))
-                             else Box(modifier = Modifier.size((20 * zoomLevel).dp).border((1.5 * zoomLevel).dp, checkmarkColor.copy(alpha = 0.6f), CircleShape))
-                        }
-                        "Fill" -> Box(modifier = Modifier.size((20 * zoomLevel).dp).background(if (item.isChecked) checkmarkColor else contentColor.copy(alpha = 0.1f), RoundedCornerShape((4 * zoomLevel).dp)).border(1.dp, checkmarkColor.copy(alpha = 0.3f), RoundedCornerShape((4 * zoomLevel).dp)))
-                        else -> if (item.isChecked) Icon(Icons.Default.Check, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
-                    }
-                }
-                
-                Text(
-                    text = item.text,
-                    onTextLayout = { textLayoutResult = it },
+                // Zone A: Action Zone (Anchored Left, Scaled size)
+                Row(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = (12 * zoomLevel).dp)
-                        .graphicsLayer(clip = false) // Allow cross-out to reach past text bounds
-                        .drawCrossOut(
-                            options = if (item.isChecked) crossOutOptions else emptyList(), 
-                            color = crossOutColor.copy(alpha = 0.5f), // Independent cross-out color
-                            wavelength = wavyWavelength,
-                            extraHeight = wavyExtraHeight,
-                            intensity = scribbleIntensity,
-                            textLayoutResult = textLayoutResult
-                        ),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        color = contentColor,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = (fontSize * zoomLevel).sp, // Dual scaling: Font * Zoom
-                        lineHeight = (fontSize * zoomLevel * 1.5f).sp, // Generous spacing for artistic effects
-                        fontFamily = when(fontStyle) {
-                            "Serif" -> FontFamily.Serif
-                            "Monospace" -> FontFamily.Monospace
-                            "Cursive" -> FontFamily.Cursive
-                            else -> FontFamily.Default
-                        }
-                    )
-                )
-            }
-
-            if (isEditMode) {
-                // Zone B: Move Zone (Center 20% approx)
-                Box(
-                    modifier = handleModifier
-                        .width(64.dp)
-                        .fillMaxHeight()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
+                        .clickable { onToggle() }
+                        .padding(vertical = 12.dp, horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowUp,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = contentColor.copy(alpha = 0.7f)
-                        )
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp).offset(y = (-12).dp),
-                            tint = contentColor.copy(alpha = 0.7f)
-                        )
+                    // Fixed-position checkmark area that grows/shrinks with zoom
+                    Box(
+                        modifier = Modifier.size((32 * zoomLevel).dp), 
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (showCheckmarkBox && checkmarkStyle != "Fill") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .border((1.5 * zoomLevel).dp, checkmarkColor.copy(alpha = 0.6f), RoundedCornerShape((4 * zoomLevel).dp))
+                            )
+                        }
+                        
+                        val iconSize = (24 * zoomLevel).dp
+                        when (checkmarkStyle) {
+                            "X" -> if (item.isChecked) Icon(Icons.Default.Close, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
+                            "Star" -> if (item.isChecked) Icon(Icons.Default.Star, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
+                            "Circle" -> {
+                                 if (item.isChecked) Box(modifier = Modifier.size((20 * zoomLevel).dp).background(checkmarkColor, CircleShape))
+                                 else Box(modifier = Modifier.size((20 * zoomLevel).dp).border((1.5 * zoomLevel).dp, checkmarkColor.copy(alpha = 0.6f), CircleShape))
+                            }
+                            "Fill" -> Box(modifier = Modifier.size((20 * zoomLevel).dp).background(if (item.isChecked) checkmarkColor else contentColor.copy(alpha = 0.1f), RoundedCornerShape((4 * zoomLevel).dp)).border(1.dp, checkmarkColor.copy(alpha = 0.3f), RoundedCornerShape((4 * zoomLevel).dp)))
+                            else -> if (item.isChecked) Icon(Icons.Default.Check, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
+                        }
                     }
+                    
+                    Text(
+                        text = item.text,
+                        onTextLayout = { textLayoutResult = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = (12 * zoomLevel).dp)
+                            .graphicsLayer(clip = false) // Allow cross-out to reach past text bounds
+                            .drawCrossOut(
+                                options = if (item.isChecked) crossOutOptions else emptyList(), 
+                                color = crossOutColor, 
+                                opacity = crossOutOpacity,
+                                wavelength = wavyWavelength,
+                                extraHeight = wavyExtraHeight,
+                                intensity = scribbleIntensity,
+                                textLayoutResult = textLayoutResult
+                            ),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = contentColor,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = (fontSize * zoomLevel).sp, // Dual scaling: Font * Zoom
+                            lineHeight = (fontSize * zoomLevel * 1.5f).sp, // Generous spacing for artistic effects
+                            fontFamily = when(fontStyle) {
+                                "Serif" -> FontFamily.Serif
+                                "Monospace" -> FontFamily.Monospace
+                                "Cursive" -> FontFamily.Cursive
+                                else -> FontFamily.Default
+                            }
+                        )
+                    )
                 }
 
-                // Zone C: Delete Zone (Right 20% approx)
-                Box(
-                    modifier = Modifier
-                        .width(64.dp)
-                        .clickable { onDelete() }
-                        .fillMaxHeight()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete Item",
-                        tint = MaterialTheme.colorScheme.error
-                    )
+                if (isEditMode) {
+                    // Zone B: Move Zone (Center 20% approx)
+                    Box(
+                        modifier = handleModifier
+                            .width(64.dp)
+                            .fillMaxHeight()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowUp,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = contentColor.copy(alpha = 0.7f)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp).offset(y = (-12).dp),
+                                tint = contentColor.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+
+                    // Zone C: Delete Zone (Right 20% approx)
+                    Box(
+                        modifier = Modifier
+                            .width(64.dp)
+                            .clickable { onDelete() }
+                            .fillMaxHeight()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete Item",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
@@ -1375,7 +1424,7 @@ fun ListItemRow(
 }
 
 @Composable
-fun AddItemDialog(onAdd: (String) -> Unit, onDismiss: () -> Unit) {
+fun AddItemDialog(onAdd: (String, Boolean) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
 
@@ -1387,22 +1436,31 @@ fun AddItemDialog(onAdd: (String) -> Unit, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text("Add New Item") },
         text = {
-            TextField(
-                value = text,
-                onValueChange = { text = it },
-                placeholder = { Text("Item name...") },
-                modifier = Modifier.focusRequester(focusRequester),
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences
+            Column {
+                TextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("Item name...") },
+                    modifier = Modifier.focusRequester(focusRequester),
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences
+                    )
                 )
-            )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedButton(
+                    onClick = { onAdd("", true) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Menu, contentDescription = null) // Using Menu as a Spreader icon
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Add Spreader Line")
+                }
+            }
         },
         confirmButton = {
             Button(onClick = {
-                if (text.isNotBlank()) {
-                    onAdd(text)
-                    text = ""
-                }
+                onAdd(text, false)
+                text = ""
             }) { Text("Add") }
         },
         dismissButton = {
@@ -1581,7 +1639,7 @@ fun ColorPickerDialog(
                                     val g = clean.substring(2, 4).toInt(16)
                                     val b = clean.substring(4, 6).toInt(16)
                                     selectedColor = Color(r, g, b)
-                                } catch (e: Exception) { /* Invalid hex */ }
+                                } catch (_: Exception) { /* Invalid hex */ }
                             }
                         },
                         label = { Text("Hex Code") },
@@ -1854,9 +1912,8 @@ fun colorToHsv(color: Color): FloatArray {
     }
     
     val s = if (max == 0f) 0f else delta / max
-    val v = max
     
-    return floatArrayOf(h * 360f, s, v)
+    return floatArrayOf(h * 360f, s, max)
 }
 
 @Composable
@@ -1917,6 +1974,7 @@ fun BrightnessSlider(
 fun Modifier.drawCrossOut(
     options: List<String>, 
     color: Color, 
+    opacity: Float = 1.0f,
     wavelength: Float = 20f,
     extraHeight: Boolean = false,
     intensity: Float = 0.5f,
@@ -1925,6 +1983,7 @@ fun Modifier.drawCrossOut(
     drawContent()
     if (options.isEmpty()) return@drawWithContent
     val layout = textLayoutResult ?: return@drawWithContent
+    val effectiveColor = color.copy(alpha = opacity)
 
     for (i in 0 until layout.lineCount) {
         val lineTop = layout.getLineTop(i)
@@ -1936,7 +1995,7 @@ fun Modifier.drawCrossOut(
 
         if (options.contains("Straight")) {
             drawLine(
-                color = color,
+                color = effectiveColor,
                 start = Offset(lineLeft, lineCenterY),
                 end = Offset(lineRight, lineCenterY),
                 strokeWidth = 2.dp.toPx()
@@ -1947,25 +2006,24 @@ fun Modifier.drawCrossOut(
             val path = Path()
             path.moveTo(lineLeft, lineCenterY)
             
-            val waveWidth = wavelength
             // Amplitude tied to line height if extraHeight is on
             val lineHeight = lineBottom - lineTop
             val amplitude = if (extraHeight) lineHeight * 0.7f else 12f // Dramatic dips/hills
             
-            val waveCount = (lineWidth / waveWidth).toInt() + 1
-            for (j in 0 until waveCount) {
-                path.relativeQuadraticBezierTo(
-                    waveWidth / 4f, -amplitude,
-                    waveWidth / 2f, 0f
+            val waveCount = (lineWidth / wavelength).toInt() + 1
+            for (idx in 0 until waveCount) {
+                path.relativeQuadraticTo(
+                    wavelength / 4f, -amplitude,
+                    wavelength / 2f, 0f
                 )
-                path.relativeQuadraticBezierTo(
-                    waveWidth / 4f, amplitude,
-                    waveWidth / 2f, 0f
+                path.relativeQuadraticTo(
+                    wavelength / 4f, amplitude,
+                    wavelength / 2f, 0f
                 )
             }
             drawPath(
                 path = path,
-                color = color,
+                color = effectiveColor,
                 style = Stroke(width = if (extraHeight) 3.5.dp.toPx() else 2.5.dp.toPx())
             )
         }
@@ -1979,8 +2037,8 @@ fun Modifier.drawCrossOut(
             val steps = (lineWidth / stepSize).toInt()
             val lineHeight = lineBottom - lineTop
             
-            for (j in 0 until steps) {
-                val x = lineLeft + j * stepSize
+            for (idx in 0 until steps) {
+                val x = lineLeft + idx * stepSize
                 // Full height scribble covering the line's vertical space
                 val scribbleHeight = if (extraHeight) lineHeight * 0.9f else lineHeight * 0.6f
                 val jitter = (Random.nextFloat() * scribbleHeight) - (scribbleHeight / 2f)
@@ -1992,7 +2050,7 @@ fun Modifier.drawCrossOut(
             }
             drawPath(
                 path = path,
-                color = color,
+                color = effectiveColor,
                 style = Stroke(width = 1.5.dp.toPx())
             )
         }

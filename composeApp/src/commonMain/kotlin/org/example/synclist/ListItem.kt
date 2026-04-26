@@ -7,6 +7,7 @@ data class ListItem(
     val id: String = "",
     val text: String = "",
     val isChecked: Boolean = false,
+    val isSpreader: Boolean = false,
     val timestamp: Long = 0L,
     val position: Double = 0.0
 )
