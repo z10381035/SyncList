@@ -98,6 +98,8 @@ fun App() {
         var checkmarkStyle by remember { mutableStateOf("Checkmark") }
         var checkmarkColor by remember { mutableStateOf<Color?>(null) }
         var showCheckmarkBox by remember { mutableStateOf(true) }
+        var isHighContrastMode by remember { mutableStateOf(true) }
+        var crossOutColor by remember { mutableStateOf<Color?>(null) }
         var wavyWavelength by remember { mutableStateOf(20f) }
         var wavyExtraHeight by remember { mutableStateOf(false) }
         var scribbleIntensity by remember { mutableStateOf(0.5f) }
@@ -213,6 +215,9 @@ fun App() {
             )
         }
 
+        val effectiveCheckmarkColor = if (isHighContrastMode) contentColor else (checkmarkColor ?: contentColor)
+        val effectiveCrossOutColor = if (isHighContrastMode) contentColor else (crossOutColor ?: effectiveCheckmarkColor)
+
         if (currentScreen == Screen.Settings) {
             SettingsPage(
                 showMetadata = showMetadata,
@@ -231,6 +236,10 @@ fun App() {
                 onCheckmarkColorChange = { checkmarkColor = it },
                 showCheckmarkBox = showCheckmarkBox,
                 onShowCheckmarkBoxChange = { showCheckmarkBox = it },
+                isHighContrastMode = isHighContrastMode,
+                onHighContrastModeChange = { isHighContrastMode = it },
+                crossOutColor = crossOutColor ?: effectiveCheckmarkColor,
+                onCrossOutColorChange = { crossOutColor = it },
                 wavyWavelength = wavyWavelength,
                 onWavyWavelengthChange = { wavyWavelength = it },
                 wavyExtraHeight = wavyExtraHeight,
@@ -247,6 +256,8 @@ fun App() {
                     checkmarkStyle = "Checkmark"
                     checkmarkColor = null
                     showCheckmarkBox = true
+                    isHighContrastMode = true
+                    crossOutColor = null
                     wavyWavelength = 20f
                     wavyExtraHeight = false
                     scribbleIntensity = 0.5f
@@ -568,9 +579,10 @@ fun App() {
                             zoomLevel = zoomLevel,
                             fontStyle = fontStyle,
                             checkmarkStyle = checkmarkStyle,
-                            checkmarkColor = checkmarkColor ?: listItemContentColor,
+                            checkmarkColor = effectiveCheckmarkColor,
                             showCheckmarkBox = showCheckmarkBox,
                             crossOutOptions = crossOutOptions,
+                            crossOutColor = effectiveCrossOutColor,
                             wavyWavelength = wavyWavelength,
                             wavyExtraHeight = wavyExtraHeight,
                             scribbleIntensity = scribbleIntensity,
@@ -662,6 +674,10 @@ fun SettingsPage(
     onCheckmarkColorChange: (Color) -> Unit,
     showCheckmarkBox: Boolean,
     onShowCheckmarkBoxChange: (Boolean) -> Unit,
+    isHighContrastMode: Boolean,
+    onHighContrastModeChange: (Boolean) -> Unit,
+    crossOutColor: Color,
+    onCrossOutColorChange: (Color) -> Unit,
     wavyWavelength: Float,
     onWavyWavelengthChange: (Float) -> Unit,
     wavyExtraHeight: Boolean,
@@ -674,6 +690,7 @@ fun SettingsPage(
     onBack: () -> Unit
 ) {
     var showCheckColorPicker by remember { mutableStateOf(false) }
+    var showCrossColorPicker by remember { mutableStateOf(false) }
 
     if (showCheckColorPicker) {
         ColorPickerDialog(
@@ -684,6 +701,19 @@ fun SettingsPage(
             onColorSelected = { 
                 onCheckmarkColorChange(it)
                 showCheckColorPicker = false
+            }
+        )
+    }
+
+    if (showCrossColorPicker) {
+        ColorPickerDialog(
+            title = "Pick Cross-out Color",
+            initialColor = crossOutColor,
+            savedCustomColors = savedCustomColors,
+            onDismiss = { showCrossColorPicker = false },
+            onColorSelected = { 
+                onCrossOutColorChange(it)
+                showCrossColorPicker = false
             }
         )
     }
@@ -799,9 +829,10 @@ fun SettingsPage(
                         zoomLevel = zoomLevel,
                         fontStyle = fontStyle,
                         checkmarkStyle = checkmarkStyle,
-                        checkmarkColor = checkmarkColor ?: contentColor, // Fixed fallback
+                        checkmarkColor = if (isHighContrastMode) contentColor else checkmarkColor,
                         showCheckmarkBox = showCheckmarkBox,
                         crossOutOptions = emptyList(),
+                        crossOutColor = if (isHighContrastMode) contentColor else crossOutColor,
                         wavyWavelength = wavyWavelength,
                         wavyExtraHeight = wavyExtraHeight,
                         scribbleIntensity = scribbleIntensity,
@@ -836,7 +867,32 @@ fun SettingsPage(
             // 4. Checkmark Style
             Column {
                 Text(text = "Checkmark Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "High Contrast Mode",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Lock icons and cross-outs to Black/White.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = isHighContrastMode,
+                        onCheckedChange = onHighContrastModeChange
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Show Border Box")
@@ -860,10 +916,16 @@ fun SettingsPage(
 
                 Button(
                     onClick = { showCheckColorPicker = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = checkmarkColor)
+                    enabled = !isHighContrastMode,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isHighContrastMode) Color.Gray.copy(alpha = 0.3f) else checkmarkColor
+                    )
                 ) {
                     val luminance = 0.299 * checkmarkColor.red + 0.587 * checkmarkColor.green + 0.114 * checkmarkColor.blue
-                    Text("Change Checkmark Color", color = if (luminance > 0.5) Color.Black else Color.White)
+                    Text(
+                        "Change Checkmark Color", 
+                        color = if (isHighContrastMode) contentColor.copy(alpha = 0.38f) else (if (luminance > 0.5) Color.Black else Color.White)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -881,7 +943,7 @@ fun SettingsPage(
                         modifier = Modifier.size((48 * zoomLevel).dp), 
                         contentAlignment = Alignment.Center
                     ) {
-                        val previewCheckColor = checkmarkColor ?: contentColor
+                        val previewCheckColor = if (isHighContrastMode) contentColor else checkmarkColor
                         if (showCheckmarkBox && checkmarkStyle != "Fill") {
                             Box(modifier = Modifier.fillMaxSize().border((2 * zoomLevel).dp, previewCheckColor.copy(alpha = 0.6f), RoundedCornerShape((4 * zoomLevel).dp)))
                         }
@@ -903,6 +965,22 @@ fun SettingsPage(
             // 5. Cross-out Effects
             Column {
                 Text(text = "Cross-out Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = { showCrossColorPicker = true },
+                    enabled = !isHighContrastMode,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isHighContrastMode) Color.Gray.copy(alpha = 0.3f) else crossOutColor
+                    )
+                ) {
+                    val luminance = 0.299 * crossOutColor.red + 0.587 * crossOutColor.green + 0.114 * crossOutColor.blue
+                    Text(
+                        "Change Cross-out Color", 
+                        color = if (isHighContrastMode) contentColor.copy(alpha = 0.38f) else (if (luminance > 0.5) Color.Black else Color.White)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 // Wavy Sub-options
@@ -975,9 +1053,10 @@ fun SettingsPage(
                         zoomLevel = zoomLevel,
                         fontStyle = fontStyle,
                         checkmarkStyle = checkmarkStyle,
-                        checkmarkColor = checkmarkColor ?: contentColor, // Fixed fallback
+                        checkmarkColor = if (isHighContrastMode) contentColor else checkmarkColor,
                         showCheckmarkBox = showCheckmarkBox,
                         crossOutOptions = crossOutOptions,
+                        crossOutColor = if (isHighContrastMode) contentColor else crossOutColor,
                         wavyWavelength = wavyWavelength,
                         wavyExtraHeight = wavyExtraHeight,
                         scribbleIntensity = scribbleIntensity,
@@ -1030,6 +1109,7 @@ fun ListItemRow(
     checkmarkColor: Color,
     showCheckmarkBox: Boolean,
     crossOutOptions: List<String>,
+    crossOutColor: Color,
     wavyWavelength: Float,
     wavyExtraHeight: Boolean,
     scribbleIntensity: Float,
@@ -1096,7 +1176,7 @@ fun ListItemRow(
                         .graphicsLayer(clip = false) // Allow cross-out to reach past text bounds
                         .drawCrossOut(
                             options = if (item.isChecked) crossOutOptions else emptyList(), 
-                            color = checkmarkColor.copy(alpha = 0.5f), // Match checkmark color for harmony
+                            color = crossOutColor.copy(alpha = 0.5f), // Independent cross-out color
                             wavelength = wavyWavelength,
                             extraHeight = wavyExtraHeight,
                             intensity = scribbleIntensity,
