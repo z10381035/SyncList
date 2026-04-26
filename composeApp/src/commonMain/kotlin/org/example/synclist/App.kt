@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -725,6 +726,12 @@ fun SettingsPage(
             }
         }
     ) { padding ->
+        val previewBgColor = remember(checkmarkColor, contentColor) {
+            val base = checkmarkColor ?: contentColor
+            val luminance = 0.299 * base.red + 0.587 * base.green + 0.114 * base.blue
+            if (luminance > 0.8) Color.Black.copy(alpha = 0.05f) else Color.Transparent
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -781,6 +788,7 @@ fun SettingsPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .background(previewBgColor, RoundedCornerShape(8.dp)) // Contrast layer
                         .padding(12.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -791,7 +799,7 @@ fun SettingsPage(
                         zoomLevel = zoomLevel,
                         fontStyle = fontStyle,
                         checkmarkStyle = checkmarkStyle,
-                        checkmarkColor = checkmarkColor,
+                        checkmarkColor = checkmarkColor ?: contentColor, // Fixed fallback
                         showCheckmarkBox = showCheckmarkBox,
                         crossOutOptions = emptyList(),
                         wavyWavelength = wavyWavelength,
@@ -864,6 +872,7 @@ fun SettingsPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .background(previewBgColor, RoundedCornerShape(8.dp)) // Contrast layer
                         .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -872,17 +881,18 @@ fun SettingsPage(
                         modifier = Modifier.size((48 * zoomLevel).dp), 
                         contentAlignment = Alignment.Center
                     ) {
+                        val previewCheckColor = checkmarkColor ?: contentColor
                         if (showCheckmarkBox && checkmarkStyle != "Fill") {
-                            Box(modifier = Modifier.fillMaxSize().border((2 * zoomLevel).dp, checkmarkColor.copy(alpha = 0.6f), RoundedCornerShape((4 * zoomLevel).dp)))
+                            Box(modifier = Modifier.fillMaxSize().border((2 * zoomLevel).dp, previewCheckColor.copy(alpha = 0.6f), RoundedCornerShape((4 * zoomLevel).dp)))
                         }
                         
                         val iconSize = (32 * zoomLevel).dp
                         when (checkmarkStyle) {
-                            "X" -> Icon(Icons.Default.Close, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
-                            "Star" -> Icon(Icons.Default.Star, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
-                            "Circle" -> Box(modifier = Modifier.size((24 * zoomLevel).dp).border((2 * zoomLevel).dp, checkmarkColor, CircleShape).background(checkmarkColor, CircleShape))
-                            "Fill" -> Box(modifier = Modifier.size((24 * zoomLevel).dp).background(checkmarkColor, RoundedCornerShape((4 * zoomLevel).dp)))
-                            else -> Icon(Icons.Default.Check, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(iconSize))
+                            "X" -> Icon(Icons.Default.Close, contentDescription = null, tint = previewCheckColor, modifier = Modifier.size(iconSize))
+                            "Star" -> Icon(Icons.Default.Star, contentDescription = null, tint = previewCheckColor, modifier = Modifier.size(iconSize))
+                            "Circle" -> Box(modifier = Modifier.size((24 * zoomLevel).dp).border((2 * zoomLevel).dp, previewCheckColor, CircleShape).background(previewCheckColor, CircleShape))
+                            "Fill" -> Box(modifier = Modifier.size((24 * zoomLevel).dp).background(previewCheckColor, RoundedCornerShape((4 * zoomLevel).dp)))
+                            else -> Icon(Icons.Default.Check, contentDescription = null, tint = previewCheckColor, modifier = Modifier.size(iconSize))
                         }
                     }
                 }
@@ -953,7 +963,9 @@ fun SettingsPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp) // Taller preview for "Extra Height" mode
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .background(previewBgColor, RoundedCornerShape(8.dp)) // Contrast layer
+                        .padding(12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     ListItemRow(
@@ -963,7 +975,7 @@ fun SettingsPage(
                         zoomLevel = zoomLevel,
                         fontStyle = fontStyle,
                         checkmarkStyle = checkmarkStyle,
-                        checkmarkColor = checkmarkColor,
+                        checkmarkColor = checkmarkColor ?: contentColor, // Fixed fallback
                         showCheckmarkBox = showCheckmarkBox,
                         crossOutOptions = crossOutOptions,
                         wavyWavelength = wavyWavelength,
@@ -1027,6 +1039,8 @@ fun ListItemRow(
     modifier: Modifier = Modifier,
     handleModifier: Modifier = Modifier
 ) {
+    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -1075,6 +1089,7 @@ fun ListItemRow(
                 
                 Text(
                     text = item.text,
+                    onTextLayout = { textLayoutResult = it },
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = (12 * zoomLevel).dp)
@@ -1084,12 +1099,14 @@ fun ListItemRow(
                             color = checkmarkColor.copy(alpha = 0.5f), // Match checkmark color for harmony
                             wavelength = wavyWavelength,
                             extraHeight = wavyExtraHeight,
-                            intensity = scribbleIntensity
+                            intensity = scribbleIntensity,
+                            textLayoutResult = textLayoutResult
                         ),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         color = contentColor,
                         fontWeight = FontWeight.Medium,
                         fontSize = (fontSize * zoomLevel).sp, // Dual scaling: Font * Zoom
+                        lineHeight = (fontSize * zoomLevel * 1.5f).sp, // Generous spacing for artistic effects
                         fontFamily = when(fontStyle) {
                             "Serif" -> FontFamily.Serif
                             "Monospace" -> FontFamily.Monospace
@@ -1690,74 +1707,82 @@ fun Modifier.drawCrossOut(
     color: Color, 
     wavelength: Float = 20f,
     extraHeight: Boolean = false,
-    intensity: Float = 0.5f
+    intensity: Float = 0.5f,
+    textLayoutResult: TextLayoutResult? = null
 ): Modifier = this.drawWithContent {
     drawContent()
     if (options.isEmpty()) return@drawWithContent
+    val layout = textLayoutResult ?: return@drawWithContent
 
-    val canvasWidth = size.width
-    val canvasHeight = size.height
-    val centerY = canvasHeight / 2f
+    for (i in 0 until layout.lineCount) {
+        val lineTop = layout.getLineTop(i)
+        val lineBottom = layout.getLineBottom(i)
+        val lineCenterY = (lineTop + lineBottom) / 2f
+        val lineRight = layout.getLineRight(i)
+        val lineLeft = layout.getLineLeft(i)
+        val lineWidth = lineRight - lineLeft
 
-    if (options.contains("Straight")) {
-        drawLine(
-            color = color,
-            start = Offset(0f, centerY),
-            end = Offset(canvasWidth, centerY),
-            strokeWidth = 2.dp.toPx()
-        )
-    }
-
-    if (options.contains("Wavy")) {
-        val path = Path()
-        path.moveTo(0f, centerY)
-        
-        val waveWidth = wavelength
-        // Dynamic amplitude: Extra Height mode extends past the text into the tile space
-        val amplitude = if (extraHeight) 40.dp.toPx() else 12f 
-        
-        val waveCount = (canvasWidth / waveWidth).toInt() + 1
-        for (i in 0 until waveCount) {
-            path.relativeQuadraticBezierTo(
-                waveWidth / 4f, -amplitude,
-                waveWidth / 2f, 0f
-            )
-            path.relativeQuadraticBezierTo(
-                waveWidth / 4f, amplitude,
-                waveWidth / 2f, 0f
+        if (options.contains("Straight")) {
+            drawLine(
+                color = color,
+                start = Offset(lineLeft, lineCenterY),
+                end = Offset(lineRight, lineCenterY),
+                strokeWidth = 2.dp.toPx()
             )
         }
-        drawPath(
-            path = path,
-            color = color,
-            style = Stroke(width = if (extraHeight) 3.5.dp.toPx() else 2.5.dp.toPx())
-        )
-    }
 
-    if (options.contains("Scribble")) {
-        val path = Path()
-        path.moveTo(0f, centerY)
-        
-        // Intensity controls spacing: smaller step = higher density
-        // 0.1 intensity -> 12px steps, 1.0 intensity -> 2px steps
-        val stepSize = 12f - (intensity * 10f) 
-        val steps = (canvasWidth / stepSize).toInt()
-        
-        for (i in 0 until steps) {
-            val x = i * stepSize
-            // Full height scribble with frantic jitter
-            val scribbleHeight = if (extraHeight) 40.dp.toPx() else canvasHeight
-            val jitter = (Random.nextFloat() * scribbleHeight) - (scribbleHeight / 2f)
+        if (options.contains("Wavy")) {
+            val path = Path()
+            path.moveTo(lineLeft, lineCenterY)
             
-            path.lineTo(
-                x + (Random.nextFloat() * (stepSize * 1.5f) - (stepSize * 0.75f)),
-                centerY + jitter
+            val waveWidth = wavelength
+            // Amplitude tied to line height if extraHeight is on
+            val lineHeight = lineBottom - lineTop
+            val amplitude = if (extraHeight) lineHeight * 0.7f else 12f // Dramatic dips/hills
+            
+            val waveCount = (lineWidth / waveWidth).toInt() + 1
+            for (j in 0 until waveCount) {
+                path.relativeQuadraticBezierTo(
+                    waveWidth / 4f, -amplitude,
+                    waveWidth / 2f, 0f
+                )
+                path.relativeQuadraticBezierTo(
+                    waveWidth / 4f, amplitude,
+                    waveWidth / 2f, 0f
+                )
+            }
+            drawPath(
+                path = path,
+                color = color,
+                style = Stroke(width = if (extraHeight) 3.5.dp.toPx() else 2.5.dp.toPx())
             )
         }
-        drawPath(
-            path = path,
-            color = color,
-            style = Stroke(width = 1.5.dp.toPx())
-        )
+
+        if (options.contains("Scribble")) {
+            val path = Path()
+            path.moveTo(lineLeft, lineCenterY)
+            
+            // Density scaling: 0.1 intensity -> 12px steps, 1.0 intensity -> 2px steps
+            val stepSize = 12f - (intensity * 10f) 
+            val steps = (lineWidth / stepSize).toInt()
+            val lineHeight = lineBottom - lineTop
+            
+            for (j in 0 until steps) {
+                val x = lineLeft + j * stepSize
+                // Full height scribble covering the line's vertical space
+                val scribbleHeight = if (extraHeight) lineHeight * 0.9f else lineHeight * 0.6f
+                val jitter = (Random.nextFloat() * scribbleHeight) - (scribbleHeight / 2f)
+                
+                path.lineTo(
+                    x + (Random.nextFloat() * (stepSize * 1.5f) - (stepSize * 0.75f)),
+                    lineCenterY + jitter
+                )
+            }
+            drawPath(
+                path = path,
+                color = color,
+                style = Stroke(width = 1.5.dp.toPx())
+            )
+        }
     }
 }
