@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,14 +42,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -60,6 +67,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.*
+import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
@@ -83,6 +91,12 @@ fun App() {
         var isEditingTitle by remember { mutableStateOf(false) }
         var appBarColor by remember { mutableStateOf<Color?>(null) }
         var listBackgroundColor by remember { mutableStateOf<Color?>(null) }
+        var zoomLevel by remember { mutableStateOf(1f) }
+        var fontSize by remember { mutableStateOf(16f) }
+        var fontStyle by remember { mutableStateOf("Default") }
+        var checkmarkStyle by remember { mutableStateOf("Checkmark") }
+        val crossOutOptions = remember { mutableStateListOf<String>() }
+
         var showColorPicker by remember { mutableStateOf(false) }
         var colorTarget by remember { mutableStateOf("Top Bar") } // "Top Bar" or "List Background"
         val savedCustomColors = remember { mutableStateListOf<Color?>(null, null, null, null, null, null, null) }
@@ -199,6 +213,23 @@ fun App() {
                 onShowMetadataChange = { showMetadata = it },
                 appBarColor = appBarColor ?: MaterialTheme.colorScheme.primary,
                 contentColor = contentColor,
+                zoomLevel = zoomLevel,
+                onZoomLevelChange = { zoomLevel = it },
+                fontSize = fontSize,
+                onFontSizeChange = { fontSize = it },
+                fontStyle = fontStyle,
+                onFontStyleChange = { fontStyle = it },
+                checkmarkStyle = checkmarkStyle,
+                onCheckmarkStyleChange = { checkmarkStyle = it },
+                crossOutOptions = crossOutOptions,
+                onReset = {
+                    listBackgroundColor = null
+                    zoomLevel = 1f
+                    fontSize = 16f
+                    fontStyle = "Default"
+                    checkmarkStyle = "Checkmark"
+                    crossOutOptions.clear()
+                },
                 onBack = { currentScreen = Screen.List }
             )
         } else {
@@ -511,6 +542,11 @@ fun App() {
                         ListItemRow(
                             item = item,
                             contentColor = listItemContentColor,
+                            fontSize = fontSize,
+                            zoomLevel = zoomLevel,
+                            fontStyle = fontStyle,
+                            checkmarkStyle = checkmarkStyle,
+                            crossOutOptions = crossOutOptions,
                             onToggle = { 
                                 undoRedoManager.add(ToggleAction(item.id, item.isChecked, !item.isChecked, viewModel))
                                 viewModel.toggleItem(item)
@@ -587,6 +623,16 @@ fun SettingsPage(
     onShowMetadataChange: (Boolean) -> Unit,
     appBarColor: Color,
     contentColor: Color,
+    zoomLevel: Float,
+    onZoomLevelChange: (Float) -> Unit,
+    fontSize: Float,
+    onFontSizeChange: (Float) -> Unit,
+    fontStyle: String,
+    onFontStyleChange: (String) -> Unit,
+    checkmarkStyle: String,
+    onCheckmarkStyleChange: (String) -> Unit,
+    crossOutOptions: MutableList<String>,
+    onReset: () -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -631,31 +677,153 @@ fun SettingsPage(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Hide Metadata",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "hides the date created and date modified labels for this list.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            // 1. Metadata
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Hide Metadata",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Hide the date created and date modified labels for this list.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = !showMetadata,
+                        onCheckedChange = { onShowMetadataChange(!it) }
                     )
                 }
-                Switch(
-                    checked = !showMetadata,
-                    onCheckedChange = { onShowMetadataChange(!it) }
+            }
+
+            HorizontalDivider()
+
+            // 2. Font Style
+            Column {
+                Text(text = "Font Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                val fontStyles = listOf("Default", "Serif", "Monospace", "Cursive")
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    fontStyles.forEach { style ->
+                        FilterChip(
+                            selected = fontStyle == style,
+                            onClick = { onFontStyleChange(style) },
+                            label = { Text(style) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "This is what the font looks like.",
+                        fontSize = fontSize.sp,
+                        fontFamily = when(fontStyle) {
+                            "Serif" -> FontFamily.Serif
+                            "Monospace" -> FontFamily.Monospace
+                            "Cursive" -> FontFamily.Cursive
+                            else -> FontFamily.Default
+                        }
+                    )
+                }
+            }
+
+            HorizontalDivider()
+
+            // 3. Sizing
+            Column {
+                Text(text = "Font Size", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Slider(
+                    value = fontSize,
+                    onValueChange = onFontSizeChange,
+                    valueRange = 12f..32f,
+                    steps = 10
+                )
+                Text(text = "List Zoom (Scaling)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Slider(
+                    value = zoomLevel,
+                    onValueChange = onZoomLevelChange,
+                    valueRange = 0.7f..1.5f
                 )
             }
+
+            HorizontalDivider()
+
+            // 4. Checkmark Style
+            Column {
+                Text(text = "Checkmark Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                val checkStyles = listOf("Checkmark", "X", "Star", "Circle", "Fill")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    checkStyles.forEach { style ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onCheckmarkStyleChange(style) }) {
+                            RadioButton(selected = checkmarkStyle == style, onClick = { onCheckmarkStyleChange(style) })
+                            Text(style)
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
+            // 5. Cross-out Effects
+            Column {
+                Text(text = "Cross-out Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                val crossStyles = listOf("Straight", "Wavy", "Scribble")
+                Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                    crossStyles.forEach { style ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { 
+                            if (crossOutOptions.contains(style)) crossOutOptions.remove(style) else crossOutOptions.add(style)
+                        }) {
+                            Checkbox(checked = crossOutOptions.contains(style), onCheckedChange = {
+                                if (it) crossOutOptions.add(style) else crossOutOptions.remove(style)
+                            })
+                            Text(style)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "This is what the cross out option looks like.",
+                        modifier = Modifier.drawCrossOut(crossOutOptions, Color.Gray)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = onReset,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Reset to Default")
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
@@ -680,6 +848,11 @@ fun formatTimestamp(timestamp: Long): String {
 fun ListItemRow(
     item: ListItem,
     contentColor: Color,
+    fontSize: Float,
+    zoomLevel: Float,
+    fontStyle: String,
+    checkmarkStyle: String,
+    crossOutOptions: List<String>,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     isEditMode: Boolean,
@@ -687,7 +860,12 @@ fun ListItemRow(
     handleModifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = zoomLevel
+                scaleY = zoomLevel
+            },
         colors = CardDefaults.cardColors(
             containerColor = Color.Transparent
         )
@@ -704,24 +882,67 @@ fun ListItemRow(
                     .padding(vertical = 16.dp, horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Checkbox(
-                    checked = item.isChecked,
-                    onCheckedChange = { onToggle() },
-                    modifier = Modifier.scale(1.5f),
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = contentColor,
-                        uncheckedColor = contentColor.copy(alpha = 0.6f),
-                        checkmarkColor = if (contentColor == Color.White) Color.Black else Color.White
-                    )
-                )
+                Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                    when (checkmarkStyle) {
+                        "X" -> {
+                            if (item.isChecked) Icon(Icons.Default.Close, contentDescription = null, tint = contentColor, modifier = Modifier.size(24.dp))
+                            else Box(modifier = Modifier.size(20.dp).border(2.dp, contentColor.copy(alpha = 0.6f), RoundedCornerShape(2.dp)))
+                        }
+                        "Star" -> {
+                            Icon(
+                                if (item.isChecked) Icons.Default.Star else Icons.Default.Star,
+                                contentDescription = null,
+                                tint = if (item.isChecked) contentColor else contentColor.copy(alpha = 0.3f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        "Circle" -> {
+                             Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .border(2.dp, contentColor.copy(alpha = 0.6f), CircleShape)
+                                    .then(if (item.isChecked) Modifier.background(contentColor, CircleShape) else Modifier)
+                             )
+                        }
+                        "Fill" -> {
+                             Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .background(if (item.isChecked) contentColor else contentColor.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                                    .border(1.dp, contentColor.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+                             )
+                        }
+                        else -> {
+                            Checkbox(
+                                checked = item.isChecked,
+                                onCheckedChange = { onToggle() },
+                                modifier = Modifier.scale(1.5f),
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = contentColor,
+                                    uncheckedColor = contentColor.copy(alpha = 0.6f),
+                                    checkmarkColor = if (contentColor == Color.White) Color.Black else Color.White
+                                )
+                            )
+                        }
+                    }
+                }
+                
                 Text(
                     text = item.text,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 12.dp),
+                        .padding(start = 12.dp)
+                        .drawCrossOut(if (item.isChecked) crossOutOptions else emptyList(), contentColor.copy(alpha = 0.4f)),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         color = contentColor,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        fontSize = fontSize.sp,
+                        fontFamily = when(fontStyle) {
+                            "Serif" -> FontFamily.Serif
+                            "Monospace" -> FontFamily.Monospace
+                            "Cursive" -> FontFamily.Cursive
+                            else -> FontFamily.Default
+                        }
                     )
                 )
             }
@@ -1308,5 +1529,63 @@ fun BrightnessSlider(
                 style = Stroke(width = 1.dp.toPx())
             )
         }
+    }
+}
+
+fun Modifier.drawCrossOut(options: List<String>, color: Color): Modifier = this.drawWithContent {
+    drawContent()
+    if (options.isEmpty()) return@drawWithContent
+
+    val canvasWidth = size.width
+    val canvasHeight = size.height
+    val centerY = canvasHeight / 2f
+
+    if (options.contains("Straight")) {
+        drawLine(
+            color = color,
+            start = Offset(0f, centerY),
+            end = Offset(canvasWidth, centerY),
+            strokeWidth = 2.dp.toPx()
+        )
+    }
+
+    if (options.contains("Wavy")) {
+        val path = Path()
+        path.moveTo(0f, centerY)
+        val waveCount = 10
+        val waveWidth = canvasWidth / waveCount
+        for (i in 0 until waveCount) {
+            path.relativeQuadraticBezierTo(
+                waveWidth / 4f, -10f,
+                waveWidth / 2f, 0f
+            )
+            path.relativeQuadraticBezierTo(
+                waveWidth / 4f, 10f,
+                waveWidth / 2f, 0f
+            )
+        }
+        drawPath(
+            path = path,
+            color = color,
+            style = Stroke(width = 2.dp.toPx())
+        )
+    }
+
+    if (options.contains("Scribble")) {
+        val path = Path()
+        path.moveTo(0f, centerY)
+        val steps = 20
+        val stepWidth = canvasWidth / steps
+        for (i in 0 until steps) {
+            path.lineTo(
+                i * stepWidth + (Random.nextFloat() * 10f - 5f),
+                centerY + (Random.nextFloat() * 20f - 10f)
+            )
+        }
+        drawPath(
+            path = path,
+            color = color,
+            style = Stroke(width = 1.5.dp.toPx())
+        )
     }
 }
