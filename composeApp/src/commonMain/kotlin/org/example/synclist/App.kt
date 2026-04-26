@@ -92,6 +92,7 @@ fun App() {
         var isEditingTitle by remember { mutableStateOf(false) }
         var appBarColor by remember { mutableStateOf<Color?>(null) }
         var listBackgroundColor by remember { mutableStateOf<Color?>(null) }
+        var isDarkMode by remember { mutableStateOf(false) }
         var zoomLevel by remember { mutableStateOf(1f) }
         var fontSize by remember { mutableStateOf(16f) }
         var fontStyle by remember { mutableStateOf("Default") }
@@ -128,8 +129,8 @@ fun App() {
             if (luminance > 0.5) Color.Black else Color.White
         }
 
-        val listItemContentColor = remember(listBackgroundColor) {
-            val baseColor = listBackgroundColor ?: Color.White
+        val listItemContentColor = remember(listBackgroundColor, isDarkMode) {
+            val baseColor = if (isDarkMode) Color.Black else (listBackgroundColor ?: Color.White)
             val luminance = 0.299 * baseColor.red + 0.587 * baseColor.green + 0.114 * baseColor.blue
             if (luminance > 0.5) Color.Black else Color.White
         }
@@ -221,6 +222,8 @@ fun App() {
 
         if (currentScreen == Screen.Settings) {
             SettingsPage(
+                isDarkMode = isDarkMode,
+                onDarkModeChange = { isDarkMode = it },
                 showMetadata = showMetadata,
                 onShowMetadataChange = { showMetadata = it },
                 appBarColor = appBarColor ?: MaterialTheme.colorScheme.primary,
@@ -253,6 +256,7 @@ fun App() {
                 savedCustomColors = savedCustomColors,
                 onReset = {
                     listBackgroundColor = null
+                    isDarkMode = false
                     zoomLevel = 1f
                     fontSize = 16f
                     fontStyle = "Default"
@@ -501,7 +505,7 @@ fun App() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .background(listBackgroundColor ?: MaterialTheme.colorScheme.surface)
+                    .background(if (isDarkMode) Color.Black else (listBackgroundColor ?: MaterialTheme.colorScheme.surface))
             ) {
                 // Metadata Header
                 if (showMetadata) {
@@ -662,6 +666,8 @@ fun App() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsPage(
+    isDarkMode: Boolean,
+    onDarkModeChange: (Boolean) -> Unit,
     showMetadata: Boolean,
     onShowMetadataChange: (Boolean) -> Unit,
     appBarColor: Color,
@@ -768,14 +774,48 @@ fun SettingsPage(
             if (luminance > 0.8) Color.Black.copy(alpha = 0.05f) else Color.Transparent
         }
 
+        val settingsPageBg = if (isDarkMode) Color.Black else MaterialTheme.colorScheme.surface
+        val settingsPageContentColor = if (isDarkMode) Color.White else MaterialTheme.colorScheme.onSurface
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .background(settingsPageBg)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            // 0. Dark Mode
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Dark Mode",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = settingsPageContentColor
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Forces the entire app to use a Black background with White text.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = settingsPageContentColor.copy(alpha = 0.7f)
+                        )
+                    }
+                    Switch(
+                        checked = isDarkMode,
+                        onCheckedChange = onDarkModeChange
+                    )
+                }
+            }
+
+            HorizontalDivider(color = settingsPageContentColor.copy(alpha = 0.12f))
+
             // 1. Metadata
             Column {
                 Row(
@@ -787,13 +827,14 @@ fun SettingsPage(
                         Text(
                             text = "Hide Metadata",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = settingsPageContentColor
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Hide the date created and date modified labels for this list.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = settingsPageContentColor.copy(alpha = 0.7f)
                         )
                     }
                     Switch(
@@ -803,11 +844,16 @@ fun SettingsPage(
                 }
             }
 
-            HorizontalDivider()
+            HorizontalDivider(color = settingsPageContentColor.copy(alpha = 0.12f))
 
             // 2. Font Style
             Column {
-                Text(text = "Font Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Font Style", 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    color = settingsPageContentColor
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 val fontStyles = listOf("Default", "Serif", "Monospace", "Cursive")
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -815,7 +861,12 @@ fun SettingsPage(
                         FilterChip(
                             selected = fontStyle == style,
                             onClick = { onFontStyleChange(style) },
-                            label = { Text(style) }
+                            label = { Text(style) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                labelColor = settingsPageContentColor,
+                                selectedLabelColor = settingsPageBg,
+                                selectedContainerColor = settingsPageContentColor
+                            )
                         )
                     }
                 }
@@ -830,15 +881,15 @@ fun SettingsPage(
                 ) {
                     ListItemRow(
                         item = ListItem("preview_font", "This is what the font looks like.", isChecked = false),
-                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        contentColor = settingsPageContentColor,
                         fontSize = fontSize,
                         zoomLevel = zoomLevel,
                         fontStyle = fontStyle,
                         checkmarkStyle = checkmarkStyle,
-                        checkmarkColor = if (isCheckmarkHighContrast) contentColor else checkmarkColor,
+                        checkmarkColor = if (isCheckmarkHighContrast) settingsPageContentColor else checkmarkColor,
                         showCheckmarkBox = showCheckmarkBox,
                         crossOutOptions = emptyList(),
-                        crossOutColor = if (isCrossOutHighContrast) contentColor else crossOutColor,
+                        crossOutColor = if (isCrossOutHighContrast) settingsPageContentColor else crossOutColor,
                         wavyWavelength = wavyWavelength,
                         wavyExtraHeight = wavyExtraHeight,
                         scribbleIntensity = scribbleIntensity,
@@ -849,30 +900,53 @@ fun SettingsPage(
                 }
             }
 
-            HorizontalDivider()
+            HorizontalDivider(color = settingsPageContentColor.copy(alpha = 0.12f))
 
             // 3. Sizing
             Column {
-                Text(text = "Font Size", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Font Size", 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    color = settingsPageContentColor
+                )
                 Slider(
                     value = fontSize,
                     onValueChange = onFontSizeChange,
                     valueRange = 12f..32f,
-                    steps = 10
+                    steps = 10,
+                    colors = SliderDefaults.colors(
+                        thumbColor = settingsPageContentColor,
+                        activeTrackColor = settingsPageContentColor
+                    )
                 )
-                Text(text = "List Zoom (Scaling)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "List Zoom (Scaling)", 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    color = settingsPageContentColor
+                )
                 Slider(
                     value = zoomLevel,
                     onValueChange = onZoomLevelChange,
-                    valueRange = 0.7f..1.5f
+                    valueRange = 0.7f..1.5f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = settingsPageContentColor,
+                        activeTrackColor = settingsPageContentColor
+                    )
                 )
             }
 
-            HorizontalDivider()
+            HorizontalDivider(color = settingsPageContentColor.copy(alpha = 0.12f))
 
             // 4. Checkmark Style
             Column {
-                Text(text = "Checkmark Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Checkmark Style", 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    color = settingsPageContentColor
+                )
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Row(
@@ -884,12 +958,13 @@ fun SettingsPage(
                         Text(
                             text = "High Contrast Mode",
                             style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = settingsPageContentColor
                         )
                         Text(
                             text = "Disables the custom color option for checkmark option and uses a high contrast mode instead.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = settingsPageContentColor.copy(alpha = 0.7f)
                         )
                     }
                     Switch(
@@ -901,7 +976,7 @@ fun SettingsPage(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Show Border Box")
+                    Text("Show Border Box", color = settingsPageContentColor)
                     Spacer(modifier = Modifier.width(8.dp))
                     Switch(checked = showCheckmarkBox, onCheckedChange = onShowCheckmarkBoxChange)
                 }
@@ -912,8 +987,12 @@ fun SettingsPage(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     checkStyles.forEach { style ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onCheckmarkStyleChange(style) }) {
-                            RadioButton(selected = checkmarkStyle == style, onClick = { onCheckmarkStyleChange(style) })
-                            Text(style)
+                            RadioButton(
+                                selected = checkmarkStyle == style, 
+                                onClick = { onCheckmarkStyleChange(style) },
+                                colors = RadioButtonDefaults.colors(selectedColor = settingsPageContentColor)
+                            )
+                            Text(style, color = settingsPageContentColor)
                         }
                     }
                 }
@@ -930,7 +1009,7 @@ fun SettingsPage(
                     val luminance = 0.299 * checkmarkColor.red + 0.587 * checkmarkColor.green + 0.114 * checkmarkColor.blue
                     Text(
                         "Change Checkmark Color", 
-                        color = if (isCheckmarkHighContrast) contentColor.copy(alpha = 0.38f) else (if (luminance > 0.5) Color.Black else Color.White)
+                        color = if (isCheckmarkHighContrast) settingsPageContentColor.copy(alpha = 0.38f) else (if (luminance > 0.5) Color.Black else Color.White)
                     )
                 }
 
@@ -949,7 +1028,7 @@ fun SettingsPage(
                         modifier = Modifier.size((48 * zoomLevel).dp), 
                         contentAlignment = Alignment.Center
                     ) {
-                        val previewCheckColor = if (isCheckmarkHighContrast) contentColor else checkmarkColor
+                        val previewCheckColor = if (isCheckmarkHighContrast) settingsPageContentColor else checkmarkColor
                         if (showCheckmarkBox && checkmarkStyle != "Fill") {
                             Box(modifier = Modifier.fillMaxSize().border((2 * zoomLevel).dp, previewCheckColor.copy(alpha = 0.6f), RoundedCornerShape((4 * zoomLevel).dp)))
                         }
@@ -966,11 +1045,16 @@ fun SettingsPage(
                 }
             }
 
-            HorizontalDivider()
+            HorizontalDivider(color = settingsPageContentColor.copy(alpha = 0.12f))
 
             // 5. Cross-out Effects
             Column {
-                Text(text = "Cross-out Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Cross-out Style", 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    color = settingsPageContentColor
+                )
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
@@ -982,12 +1066,13 @@ fun SettingsPage(
                         Text(
                             text = "High Contrast Mode",
                             style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = settingsPageContentColor
                         )
                         Text(
                             text = "Disables the custom color option for cross-out option and uses a high contrast mode instead.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = settingsPageContentColor.copy(alpha = 0.7f)
                         )
                     }
                     Switch(
@@ -1008,7 +1093,7 @@ fun SettingsPage(
                     val luminance = 0.299 * crossOutColor.red + 0.587 * crossOutColor.green + 0.114 * crossOutColor.blue
                     Text(
                         "Change Cross-out Color", 
-                        color = if (isCrossOutHighContrast) contentColor.copy(alpha = 0.38f) else (if (luminance > 0.5) Color.Black else Color.White)
+                        color = if (isCrossOutHighContrast) settingsPageContentColor.copy(alpha = 0.38f) else (if (luminance > 0.5) Color.Black else Color.White)
                     )
                 }
 
@@ -1022,17 +1107,25 @@ fun SettingsPage(
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                         .padding(12.dp)
                 ) {
-                    Text(text = "Wavy Settings", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                    Text(text = "Wavy Settings", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, color = settingsPageContentColor)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "Wavelength (Undulation frequency)", style = MaterialTheme.typography.bodySmall)
+                    Text(text = "Wavelength (Undulation frequency)", style = MaterialTheme.typography.bodySmall, color = settingsPageContentColor)
                     Slider(
                         value = wavyWavelength,
                         onValueChange = onWavyWavelengthChange,
-                        valueRange = 5f..300f // Expanded range for subdued/flat waves
+                        valueRange = 5f..300f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = settingsPageContentColor,
+                            activeTrackColor = settingsPageContentColor
+                        )
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = wavyExtraHeight, onCheckedChange = onWavyExtraHeightChange)
-                        Text(text = "Extra Height (Cross out entire tile)", style = MaterialTheme.typography.bodySmall)
+                        Checkbox(
+                            checked = wavyExtraHeight, 
+                            onCheckedChange = onWavyExtraHeightChange,
+                            colors = CheckboxDefaults.colors(checkedColor = settingsPageContentColor)
+                        )
+                        Text(text = "Extra Height (Cross out entire tile)", style = MaterialTheme.typography.bodySmall, color = settingsPageContentColor)
                     }
                 }
 
@@ -1044,13 +1137,17 @@ fun SettingsPage(
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                         .padding(12.dp)
                 ) {
-                    Text(text = "Scribble Settings", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                    Text(text = "Scribble Settings", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, color = settingsPageContentColor)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "Intensity (Scraping density)", style = MaterialTheme.typography.bodySmall)
+                    Text(text = "Intensity (Scraping density)", style = MaterialTheme.typography.bodySmall, color = settingsPageContentColor)
                     Slider(
                         value = scribbleIntensity,
                         onValueChange = onScribbleIntensityChange,
-                        valueRange = 0.1f..1.0f
+                        valueRange = 0.1f..1.0f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = settingsPageContentColor,
+                            activeTrackColor = settingsPageContentColor
+                        )
                     )
                 }
 
@@ -1060,10 +1157,14 @@ fun SettingsPage(
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { 
                             if (crossOutOptions.contains(style)) crossOutOptions.remove(style) else crossOutOptions.add(style)
                         }) {
-                            Checkbox(checked = crossOutOptions.contains(style), onCheckedChange = {
-                                if (it) crossOutOptions.add(style) else crossOutOptions.remove(style)
-                            })
-                            Text(style)
+                            Checkbox(
+                                checked = crossOutOptions.contains(style), 
+                                onCheckedChange = {
+                                    if (it) crossOutOptions.add(style) else crossOutOptions.remove(style)
+                                },
+                                colors = CheckboxDefaults.colors(checkedColor = settingsPageContentColor)
+                            )
+                            Text(style, color = settingsPageContentColor)
                         }
                     }
                 }
@@ -1079,15 +1180,15 @@ fun SettingsPage(
                 ) {
                     ListItemRow(
                         item = ListItem("preview_crossout", "This is what the cross out option looks like.", isChecked = true),
-                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        contentColor = settingsPageContentColor,
                         fontSize = fontSize,
                         zoomLevel = zoomLevel,
                         fontStyle = fontStyle,
                         checkmarkStyle = checkmarkStyle,
-                        checkmarkColor = if (isCheckmarkHighContrast) contentColor else checkmarkColor,
+                        checkmarkColor = if (isCheckmarkHighContrast) settingsPageContentColor else checkmarkColor,
                         showCheckmarkBox = showCheckmarkBox,
                         crossOutOptions = crossOutOptions,
-                        crossOutColor = if (isCrossOutHighContrast) contentColor else crossOutColor,
+                        crossOutColor = if (isCrossOutHighContrast) settingsPageContentColor else crossOutColor,
                         wavyWavelength = wavyWavelength,
                         wavyExtraHeight = wavyExtraHeight,
                         scribbleIntensity = scribbleIntensity,
