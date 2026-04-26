@@ -95,6 +95,9 @@ fun App() {
         var fontSize by remember { mutableStateOf(16f) }
         var fontStyle by remember { mutableStateOf("Default") }
         var checkmarkStyle by remember { mutableStateOf("Checkmark") }
+        var checkmarkColor by remember { mutableStateOf<Color?>(null) }
+        var showCheckmarkBox by remember { mutableStateOf(true) }
+        var wavyWavelength by remember { mutableStateOf(20f) }
         val crossOutOptions = remember { mutableStateListOf<String>() }
 
         var showColorPicker by remember { mutableStateOf(false) }
@@ -221,13 +224,23 @@ fun App() {
                 onFontStyleChange = { fontStyle = it },
                 checkmarkStyle = checkmarkStyle,
                 onCheckmarkStyleChange = { checkmarkStyle = it },
+                checkmarkColor = checkmarkColor ?: contentColor,
+                onCheckmarkColorChange = { checkmarkColor = it },
+                showCheckmarkBox = showCheckmarkBox,
+                onShowCheckmarkBoxChange = { showCheckmarkBox = it },
+                wavyWavelength = wavyWavelength,
+                onWavyWavelengthChange = { wavyWavelength = it },
                 crossOutOptions = crossOutOptions,
+                savedCustomColors = savedCustomColors,
                 onReset = {
                     listBackgroundColor = null
                     zoomLevel = 1f
                     fontSize = 16f
                     fontStyle = "Default"
                     checkmarkStyle = "Checkmark"
+                    checkmarkColor = null
+                    showCheckmarkBox = true
+                    wavyWavelength = 20f
                     crossOutOptions.clear()
                 },
                 onBack = { currentScreen = Screen.List }
@@ -546,7 +559,10 @@ fun App() {
                             zoomLevel = zoomLevel,
                             fontStyle = fontStyle,
                             checkmarkStyle = checkmarkStyle,
+                            checkmarkColor = checkmarkColor ?: listItemContentColor,
+                            showCheckmarkBox = showCheckmarkBox,
                             crossOutOptions = crossOutOptions,
+                            wavyWavelength = wavyWavelength,
                             onToggle = { 
                                 undoRedoManager.add(ToggleAction(item.id, item.isChecked, !item.isChecked, viewModel))
                                 viewModel.toggleItem(item)
@@ -631,10 +647,32 @@ fun SettingsPage(
     onFontStyleChange: (String) -> Unit,
     checkmarkStyle: String,
     onCheckmarkStyleChange: (String) -> Unit,
+    checkmarkColor: Color,
+    onCheckmarkColorChange: (Color) -> Unit,
+    showCheckmarkBox: Boolean,
+    onShowCheckmarkBoxChange: (Boolean) -> Unit,
+    wavyWavelength: Float,
+    onWavyWavelengthChange: (Float) -> Unit,
     crossOutOptions: MutableList<String>,
+    savedCustomColors: MutableList<Color?>,
     onReset: () -> Unit,
     onBack: () -> Unit
 ) {
+    var showCheckColorPicker by remember { mutableStateOf(false) }
+
+    if (showCheckColorPicker) {
+        ColorPickerDialog(
+            title = "Pick Checkmark Color",
+            initialColor = checkmarkColor,
+            savedCustomColors = savedCustomColors,
+            onDismiss = { showCheckColorPicker = false },
+            onColorSelected = { 
+                onCheckmarkColorChange(it)
+                showCheckColorPicker = false
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             Column(
@@ -728,6 +766,10 @@ fun SettingsPage(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .graphicsLayer {
+                            scaleX = zoomLevel
+                            scaleY = zoomLevel
+                        }
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                         .padding(12.dp),
                     contentAlignment = Alignment.Center
@@ -769,12 +811,57 @@ fun SettingsPage(
             // 4. Checkmark Style
             Column {
                 Text(text = "Checkmark Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Show Border Box")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Switch(checked = showCheckmarkBox, onCheckedChange = onShowCheckmarkBoxChange)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                
                 val checkStyles = listOf("Checkmark", "X", "Star", "Circle", "Fill")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     checkStyles.forEach { style ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onCheckmarkStyleChange(style) }) {
                             RadioButton(selected = checkmarkStyle == style, onClick = { onCheckmarkStyleChange(style) })
                             Text(style)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = { showCheckColorPicker = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = checkmarkColor)
+                ) {
+                    val luminance = 0.299 * checkmarkColor.red + 0.587 * checkmarkColor.green + 0.114 * checkmarkColor.blue
+                    Text("Change Checkmark Color", color = if (luminance > 0.5) Color.Black else Color.White)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Checkmark Preview
+                    Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        if (showCheckmarkBox && checkmarkStyle != "Fill") {
+                            Box(modifier = Modifier.fillMaxSize().border(2.dp, checkmarkColor.copy(alpha = 0.6f), RoundedCornerShape(4.dp)))
+                        }
+                        
+                        when (checkmarkStyle) {
+                            "X" -> Icon(Icons.Default.Close, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(32.dp))
+                            "Star" -> Icon(Icons.Default.Star, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(32.dp))
+                            "Circle" -> Box(modifier = Modifier.size(24.dp).border(2.dp, checkmarkColor, CircleShape).background(checkmarkColor, CircleShape))
+                            "Fill" -> Box(modifier = Modifier.size(24.dp).background(checkmarkColor, RoundedCornerShape(4.dp)))
+                            else -> Icon(Icons.Default.Check, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(32.dp))
                         }
                     }
                 }
@@ -785,6 +872,15 @@ fun SettingsPage(
             // 5. Cross-out Effects
             Column {
                 Text(text = "Cross-out Style", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(text = "Wavy Wavelength", style = MaterialTheme.typography.labelSmall)
+                Slider(
+                    value = wavyWavelength,
+                    onValueChange = onWavyWavelengthChange,
+                    valueRange = 5f..100f
+                )
+
                 val crossStyles = listOf("Straight", "Wavy", "Scribble")
                 Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
                     crossStyles.forEach { style ->
@@ -808,7 +904,7 @@ fun SettingsPage(
                 ) {
                     Text(
                         text = "This is what the cross out option looks like.",
-                        modifier = Modifier.drawCrossOut(crossOutOptions, Color.Gray)
+                        modifier = Modifier.drawCrossOut(crossOutOptions, Color.Gray, wavyWavelength)
                     )
                 }
             }
@@ -852,7 +948,10 @@ fun ListItemRow(
     zoomLevel: Float,
     fontStyle: String,
     checkmarkStyle: String,
+    checkmarkColor: Color,
+    showCheckmarkBox: Boolean,
     crossOutOptions: List<String>,
+    wavyWavelength: Float,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     isEditMode: Boolean,
@@ -883,46 +982,31 @@ fun ListItemRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                    if (showCheckmarkBox && checkmarkStyle != "Fill") {
+                        Box(modifier = Modifier.fillMaxSize().border(1.5.dp, checkmarkColor.copy(alpha = 0.6f), RoundedCornerShape(4.dp)))
+                    }
+                    
                     when (checkmarkStyle) {
                         "X" -> {
-                            if (item.isChecked) Icon(Icons.Default.Close, contentDescription = null, tint = contentColor, modifier = Modifier.size(24.dp))
-                            else Box(modifier = Modifier.size(20.dp).border(2.dp, contentColor.copy(alpha = 0.6f), RoundedCornerShape(2.dp)))
+                            if (item.isChecked) Icon(Icons.Default.Close, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(24.dp))
                         }
                         "Star" -> {
-                            Icon(
-                                if (item.isChecked) Icons.Default.Star else Icons.Default.Star,
-                                contentDescription = null,
-                                tint = if (item.isChecked) contentColor else contentColor.copy(alpha = 0.3f),
-                                modifier = Modifier.size(24.dp)
-                            )
+                            if (item.isChecked) Icon(Icons.Default.Star, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(24.dp))
                         }
                         "Circle" -> {
-                             Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .border(2.dp, contentColor.copy(alpha = 0.6f), CircleShape)
-                                    .then(if (item.isChecked) Modifier.background(contentColor, CircleShape) else Modifier)
-                             )
+                             if (item.isChecked) Box(modifier = Modifier.size(20.dp).background(checkmarkColor, CircleShape))
+                             else Box(modifier = Modifier.size(20.dp).border(1.5.dp, checkmarkColor.copy(alpha = 0.6f), CircleShape))
                         }
                         "Fill" -> {
                              Box(
                                 modifier = Modifier
                                     .size(20.dp)
-                                    .background(if (item.isChecked) contentColor else contentColor.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-                                    .border(1.dp, contentColor.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+                                    .background(if (item.isChecked) checkmarkColor else contentColor.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                                    .border(1.dp, checkmarkColor.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
                              )
                         }
                         else -> {
-                            Checkbox(
-                                checked = item.isChecked,
-                                onCheckedChange = { onToggle() },
-                                modifier = Modifier.scale(1.5f),
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = contentColor,
-                                    uncheckedColor = contentColor.copy(alpha = 0.6f),
-                                    checkmarkColor = if (contentColor == Color.White) Color.Black else Color.White
-                                )
-                            )
+                            if (item.isChecked) Icon(Icons.Default.Check, contentDescription = null, tint = checkmarkColor, modifier = Modifier.size(24.dp))
                         }
                     }
                 }
@@ -932,7 +1016,7 @@ fun ListItemRow(
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 12.dp)
-                        .drawCrossOut(if (item.isChecked) crossOutOptions else emptyList(), contentColor.copy(alpha = 0.4f)),
+                        .drawCrossOut(if (item.isChecked) crossOutOptions else emptyList(), contentColor.copy(alpha = 0.4f), wavyWavelength),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         color = contentColor,
                         fontWeight = FontWeight.Medium,
@@ -1532,7 +1616,7 @@ fun BrightnessSlider(
     }
 }
 
-fun Modifier.drawCrossOut(options: List<String>, color: Color): Modifier = this.drawWithContent {
+fun Modifier.drawCrossOut(options: List<String>, color: Color, wavelength: Float = 20f): Modifier = this.drawWithContent {
     drawContent()
     if (options.isEmpty()) return@drawWithContent
 
@@ -1552,40 +1636,48 @@ fun Modifier.drawCrossOut(options: List<String>, color: Color): Modifier = this.
     if (options.contains("Wavy")) {
         val path = Path()
         path.moveTo(0f, centerY)
-        val waveCount = 10
-        val waveWidth = canvasWidth / waveCount
+        
+        // Dynamic wavelength and dramatic amplitude
+        val waveWidth = wavelength
+        val amplitude = 12f // Taller hills and deeper valleys
+        
+        val waveCount = (canvasWidth / waveWidth).toInt() + 1
         for (i in 0 until waveCount) {
             path.relativeQuadraticBezierTo(
-                waveWidth / 4f, -10f,
+                waveWidth / 4f, -amplitude,
                 waveWidth / 2f, 0f
             )
             path.relativeQuadraticBezierTo(
-                waveWidth / 4f, 10f,
+                waveWidth / 4f, amplitude,
                 waveWidth / 2f, 0f
             )
         }
         drawPath(
             path = path,
             color = color,
-            style = Stroke(width = 2.dp.toPx())
+            style = Stroke(width = 2.5.dp.toPx())
         )
     }
 
     if (options.contains("Scribble")) {
         val path = Path()
         path.moveTo(0f, centerY)
-        val steps = 20
-        val stepWidth = canvasWidth / steps
+        
+        // "Zippy" high-intensity needle motion
+        val steps = (canvasWidth / 2f).toInt() // Very high density
         for (i in 0 until steps) {
+            val x = i * 2f
+            // Full height scribble (needle motion)
+            val yOffset = Random.nextFloat() * canvasHeight - centerY
             path.lineTo(
-                i * stepWidth + (Random.nextFloat() * 10f - 5f),
-                centerY + (Random.nextFloat() * 20f - 10f)
+                x + (Random.nextFloat() * 4f - 2f),
+                centerY + yOffset
             )
         }
         drawPath(
             path = path,
             color = color,
-            style = Stroke(width = 1.5.dp.toPx())
+            style = Stroke(width = 1.dp.toPx())
         )
     }
 }
