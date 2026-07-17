@@ -10,13 +10,33 @@
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:exported="true"
-            android:name=".MainActivity">
+            android:name=".MainActivity"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".widget.ListSelectorActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:taskAffinity="org.example.synclist.widget"
+            android:excludeFromRecents="true"
+            android:exported="true" />
+
+        <receiver
+            android:name=".widget.SyncListWidgetReceiver"
+            android:exported="true"
+            android:label="SyncList Widget">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/sync_list_widget_info" />
+        </receiver>
     </application>
 
 </manifest>
